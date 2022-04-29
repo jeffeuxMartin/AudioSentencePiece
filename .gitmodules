@@ -1,3 +1,6 @@
 [submodule "AudioSentencePiece"]
 	path = AudioSentencePiece
 	url = /storage/LabJob/AudioSentencePiece
+[submodule "src/torch_cif"]
+	path = src/torch_cif
+	url = https://github.com/George0828Zhang/torch_cif
