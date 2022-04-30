@@ -44,7 +44,8 @@ class UnitDataset(Dataset):
     def __init__(self, dataframe, tokenizer):
         self.tokenizer = tokenizer
         
-        self.num_workers = os.cpu_count()
+        self.num_workers = len(os.sched_getaffinity(0))
+            # ref.: https://stackoverflow.com/questions/1006289/how-to-find-out-the-number-of-cpus-using-python
             # TODO: Fix max = 32
         
         self.df = dataframe

@@ -15,7 +15,7 @@ from transformers.models.bart.modeling_bart import shift_tokens_right
 
 import pytorch_lightning as pl
 
-from torch_cif import cif_function
+from .torch_cif import cif_function  # FIXME later
 from .utils import mask_generator
 from .datasets import UnitDataset
 
@@ -166,17 +166,22 @@ class SpeechToSemantics(nn.Module):
         representation_decoder,
         tokenizer,
         task_name,
+        fixed_encoder=True,
     ):
       super().__init__()
       self.task_name = task_name
+      self.fixed_encoder = fixed_encoder
       
       self.word_level_encoder = word_level_encoder
-      self.word_level_encoder.eval()
-      for name, param in (
-            self.word_level_encoder
-                .named_parameters()): 
-          param.requires_grad = False
-      # Done: How to fix the parameters?
+      if self.fixed_encoder:
+          self.word_level_encoder.eval()
+          for name, param in (
+                  self.word_level_encoder
+                      .named_parameters()): 
+              param.requires_grad = False
+          # Done: How to fix the parameters?
+      else:
+          self.word_level_encoder.train()
       
       self.representation_decoder = representation_decoder
       self.tokenizer = tokenizer
@@ -188,13 +193,24 @@ class SpeechToSemantics(nn.Module):
         decoder_input_ids=None,
         decoder_attention_mask=None,
       ):
-        with torch.no_grad():  # FIXME: How to get fixed?
+        # === encoder pass === #
+        if self.fixed_encoder:
+            with torch.no_grad():  # FIXME: How to get fixed?
+                word_level_outputs = self.word_level_encoder(
+                    input_ids=encoder_input_ids,
+                    attention_mask=encoder_attention_mask,
+                    word_length_tensor=encoder_word_lengths_tensor,
+                )
+                word_representations = word_level_outputs.encoder_last_hidden_state
+                # Z = word_representations.clone().detach().cpu().numpy()
+        else:
             word_level_outputs = self.word_level_encoder(
                 input_ids=encoder_input_ids,
                 attention_mask=encoder_attention_mask,
                 word_length_tensor=encoder_word_lengths_tensor,
             )
             word_representations = word_level_outputs.encoder_last_hidden_state
+
         
         # FIXME: 為什麼已經被移到 cuda 上了？ cuda problem!
         word_level_attention_mask = (
@@ -203,22 +219,75 @@ class SpeechToSemantics(nn.Module):
             None)
             
         
+        # === decoder pass === #
+        labels = (shift_tokens_right(
+                decoder_input_ids, 
+                self.representation_decoder.config.pad_token_id, 
+                self.representation_decoder.config.decoder_start_token_id,
+            ) if decoder_input_ids is not None else # NOTE: since not shifted in model???
+            None
+        )
+        
         decoded_predictions = self.representation_decoder(
             input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
             encoder_hidden_states=word_representations, 
             encoder_attention_mask=word_level_attention_mask,
-            labels=decoder_input_ids,  # TODO & FIXME! Shift???
+            labels=labels,  # TODO & FIXME! Shift???
         )
         
         return CausalLMOutput(
             loss=decoded_predictions.loss,
             logits=decoded_predictions.logits,
         )
+        # ), Z
+        
+    def generate(self,
+        encoder_input_ids,
+        encoder_attention_mask,
+        encoder_word_lengths_tensor,
+        num_beams,
+        max_length,
+    ):
+        # === encoder pass === #
+        with torch.no_grad():  # FIXME: How to get fixed?
+            word_level_outputs = self.word_level_encoder(
+                input_ids=encoder_input_ids,
+                attention_mask=encoder_attention_mask,
+                word_length_tensor=encoder_word_lengths_tensor,
+            )
+            word_representations = word_level_outputs.encoder_last_hidden_state
+            Z = word_representations.clone().detach().cpu().numpy()
+        
+        # FIXME: 為什麼已經被移到 cuda 上了？ cuda problem!
+        word_level_attention_mask = (
+            mask_generator(encoder_word_lengths_tensor) 
+            if encoder_word_lengths_tensor is not None else 
+            None)
+            
+        
+        # === decoder pass === #
+        decoded_predictions = self.representation_decoder.generate(
+            # inputs=decoder_input_ids,
+            # attention_mask=decoder_attention_mask,
+            encoder_hidden_states=word_representations, 
+            encoder_attention_mask=word_level_attention_mask,
+            num_beams=num_beams,
+            max_length=max_length,
+        )
+        
+        return decoded_predictions
+        # return decoded_predictions, Z
+ 
        
 class PLSpeechToSemantics(pl.LightningModule):
     def __init__(self, datasets, metric_cls, wandb_logger=None, *args, **kwargs):
         super().__init__()
+        if "batch_size" in kwargs:
+            self.batch_size = kwargs.get('batch_size', 9)
+            kwargs.pop('batch_size')
+        else:
+            self.batch_size = 9
         self.model = SpeechToSemantics(*args, **kwargs)
         self.tokenizer = self.model.tokenizer
         self.wandb_logger = wandb_logger
@@ -226,7 +295,7 @@ class PLSpeechToSemantics(pl.LightningModule):
         self.trainset, self.valset = datasets
         
         # self.batch_size = 9 * 2  # TODO: check GPU numbers!
-        self.batch_size = 9  # TODO: check GPU numbers!
+        # self.batch_size = 9  # TODO: check GPU numbers!
         self.demonstration_number = 3
         
         self.metrics = {
@@ -245,6 +314,15 @@ class PLSpeechToSemantics(pl.LightningModule):
             encoder_word_lengths_tensor=kwargs["word_length_tensor"],
             decoder_input_ids=kwargs["text_tokens"]["input_ids"],
             decoder_attention_mask=kwargs["text_tokens"]["attention_mask"],
+        )
+        
+    def generate(self, *args, **kwargs):
+        return self.model.generate(
+            encoder_input_ids=kwargs["input_ids"],
+            encoder_attention_mask=kwargs["attention_mask"],
+            encoder_word_lengths_tensor=kwargs["word_length_tensor"],
+            num_beams=kwargs["num_beams"],
+            max_length=kwargs["max_length"],
         )
         
     def configure_optimizers(self):
@@ -266,11 +344,15 @@ class PLSpeechToSemantics(pl.LightningModule):
        }
        
     def step_unified(self, batch, batch_idx, mode="train"):
+        # outputs, ZF = self(**batch)
         outputs = self(**batch)
         assert self.training == (mode == "train")
-        if mode != "train":
-            real_outputs = self.model.representation_decoder.generate(
-                inputs=batch["input_ids"],
+        if mode != "train":  # FIXME: 長度問題？ input 有沒有餵錯？
+            # real_outputs, ZV = self.generate(
+            real_outputs = self.generate(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                word_length_tensor=batch["word_length_tensor"],
                 num_beams=1,
                 max_length=batch["word_length_tensor"].max().item(),
             )
@@ -299,6 +381,9 @@ class PLSpeechToSemantics(pl.LightningModule):
                 key=f"Prediction v.s Ground truth ({mode})",
                 dataframe=demonstration_df,
             )
+        else:
+            pass
+            # print(demonstration_df)
         return dict(
             loss=outputs.loss,
             preds=predicted_texts,
@@ -309,10 +394,13 @@ class PLSpeechToSemantics(pl.LightningModule):
         # update and log
         metrics = self.metrics[mode]
         if self.task_name == "ASR":
-            eval_result = metrics(preds=outputs['preds'], target=list(outputs['target']))
+            eval_result = metrics(
+                preds=outputs['preds'], 
+                target=list(outputs['target']))
         elif self.task_name == "ST":
-            eval_result = metrics(preds=outputs['preds'], 
-                          target=[[i] for i in outputs['target']])
+            eval_result = metrics(
+                preds=outputs['preds'], 
+                target=[[i] for i in outputs['target']])
         metric_name = {"ASR": "WER", "ST": "BLEU"}[self.task_name]
         self.log(f"{mode}_{metric_name}", eval_result,
             batch_size=self.batch_size, prog_bar=True)
@@ -330,7 +418,11 @@ class PLSpeechToSemantics(pl.LightningModule):
         return self.step_end_unified(outputs, mode="valid")
         
     def train_dataloader(self):
-        print(f"\n{self.trainset.num_workers = }")
+        print(f"\n"
+            "\033[01;31m"
+            f"{self.trainset.num_workers = }"
+            "\033[0m"
+        )
         return DataLoader(
             dataset=self.trainset, 
             batch_size=self.batch_size,
@@ -345,8 +437,11 @@ class PLSpeechToSemantics(pl.LightningModule):
         )
         
     def val_dataloader(self):
-        print(f"\n{self.valset.num_workers = }")
-        # input('?????????')
+        print(f"\n"
+            "\033[01;31m"
+            f"{self.valset.num_workers = }"
+            "\033[0m"
+        )
         return DataLoader(
             dataset=self.valset, 
             batch_size=self.batch_size,
