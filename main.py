@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 LOG_WANDB = True
+LOG_WANDB = False
 
 if "loggings":
     import logging, logging.config; from src.logging import MYCONFIG; 
@@ -10,7 +11,7 @@ if "loggings":
 PRINTINFO('~~~ !!! START !!! ~~~')
 
 if "imports":
-    import os, argparse
+    import os, sys, argparse
 
     import pandas as pd
 
@@ -20,6 +21,7 @@ if "imports":
 
     import pytorch_lightning as pl
     from pytorch_lightning.loggers import WandbLogger
+    from pytorch_lightning.strategies.ddp import DDPStrategy
     from torchmetrics import WordErrorRate
 
     from src.trainers import HuggingFaceTrainer
@@ -39,13 +41,20 @@ def get_args():
         "-b", "--batch_size",
         type=int, default=9,
     )
+    parser.add_argument(
+        "-lr", "--lr",
+        type=float, default=2e-4,
+    )
+    parser.add_argument("--local_rank", type=int, default=0)
     args = parser.parse_args()
+    
     return args  # , config, backup_files
 
 
 if __name__ == '__main__':
     PRINTINFO('~~~ !!! __main__ START !!! ~~~')    
     args = get_args()
+    print(sys.argv)
     
     os.environ['WANDB_PROJECT'] = ("UnitWordSemantics")
     
@@ -103,6 +112,7 @@ if __name__ == '__main__':
         fixed_encoder=True,
         **(dict(wandb_logger=wandb_logger) 
            if LOG_WANDB else {}),
+        lr=args.lr,
     )
 
     PRINTDEBUG('Initialize Trainer...')
@@ -113,11 +123,13 @@ if __name__ == '__main__':
         # limit_train_batches=0.5,
         logger=wandb_logger if LOG_WANDB else True,
         log_every_n_steps=20,
-        val_check_interval=0.005,
+        val_check_interval=0.1,
         # auto_scale_batch_size="binsearch",
-        # strategy='ddp',
+        
         default_root_dir="exp/rewritten/checkpoints",
         max_epochs=-1,
+        
+        strategy=DDPStrategy(find_unused_parameters=False),
     )
 
     PRINTINFO('=== START TRAINING! ===')
@@ -144,3 +156,4 @@ if __name__ == '__main__':
 # TODO:  add ddp (check!)
 # TODO:  更多的 ｕｎｉｔｓ＆ａｎａｌｙｓｉｓ required!!!  # <--- # <~~
 # 🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️ BOS problem
+# 🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️ Multiprocessing rank!

@@ -303,7 +303,7 @@ class PLSpeechToSemantics(pl.LightningModule):
             "valid": metric_cls()}
         
         self.my_hparams = {
-            "lr": 2e-4,
+            "lr": kwargs.get('lr', 2e-4),
             "weight_decay": 0.01,  # default value
         }
         
