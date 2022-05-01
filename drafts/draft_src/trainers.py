@@ -10,12 +10,7 @@ from datasets import load_metric
 
 class HuggingFaceTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
-        # outputs = model(**inputs)
-        outputs = model(  # TODO: 不要這樣寫？
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            word_length_tensor=inputs["word_length_tensor"],
-        )
+        outputs = model(**inputs)
         
         original_units = inputs.get("input_ids")
         reconstructed_logits = outputs.get("last_hidden_state")

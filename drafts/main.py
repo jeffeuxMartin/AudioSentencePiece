@@ -54,7 +54,7 @@ def get_args():
 if __name__ == '__main__':
     PRINTINFO('~~~ !!! __main__ START !!! ~~~')    
     args = get_args()
-    print(sys.argv)
+    # print(sys.argv)
     
     os.environ['WANDB_PROJECT'] = ("UnitWordSemantics")
     
@@ -80,11 +80,13 @@ if __name__ == '__main__':
         split_num = 10
         train_dataset = UnitDataset(
             # df[:split_idx], 
-            df[df.index % split_num != split_num - 1],
+            # df[df.index % split_num != split_num - 1],
+            df[87 + 0 : 87 + 1 * 60] ,
             bart_tokenizer)
         dev_dataset = UnitDataset(
             # df[split_idx:], 
-            df[df.index % split_num == split_num - 1],
+            df[87 + 60 : 87 + 2 * 60] ,
+            # df[df.index % split_num == split_num - 1],
             bart_tokenizer)
     AEModel = load_cached(
         WordLevelBartAutoEncoder, "facebook/bart-base",
@@ -122,20 +124,27 @@ if __name__ == '__main__':
         # precisioin=16,
         # limit_train_batches=0.5,
         logger=wandb_logger if LOG_WANDB else True,
-        log_every_n_steps=20,
-        val_check_interval=0.1,
+        # log_every_n_steps=20,
+        log_every_n_steps=1,
+        # val_check_interval=0.1,
+        # val_check_interval=1,
+        check_val_every_n_epoch=1,
         # auto_scale_batch_size="binsearch",
         
-        default_root_dir="exp/rewritten/checkpoints",
+        default_root_dir="exp/rewritten/checkpoints_debugged",
         max_epochs=-1,
         
-        strategy=DDPStrategy(find_unused_parameters=False),
+        **(dict(strategy=DDPStrategy(find_unused_parameters=False))
+         if any('--local_rank' in i for i in sys.argv) else
+         {}
+        ),
     )
 
     PRINTINFO('=== START TRAINING! ===')
     lightning_trainer.fit(
         semantic_model,
         # ckpt_path=None,
+        # ckpt_path='/storage/LabJob/Projects/AudioWords/exp/rewritten/checkpoints/lightning_logs/version_19/checkpoints/epoch=0-step=171.ckpt'
     )
 
 
@@ -156,4 +165,5 @@ if __name__ == '__main__':
 # TODO:  add ddp (check!)
 # TODO:  更多的 ｕｎｉｔｓ＆ａｎａｌｙｓｉｓ required!!!  # <--- # <~~
 # 🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️ BOS problem
-# 🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️ Multiprocessing rank!
+# vFIXED: Multiprocessing rank!
+# 🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️🙇‍♂️ 紀錄第幾次 ｌｏｇ text
