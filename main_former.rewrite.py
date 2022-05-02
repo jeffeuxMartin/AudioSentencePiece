@@ -571,7 +571,7 @@ if __name__ == "__main__":
         semantic_model = PLNew(BEModel, tokenizer=bart_tokenizer, wandb_logger=wandb_logger if LOG_WANDB else None,
         datasets=(train_dataset, dev_dataset), metric_cls=WordErrorRate, hparams={
             "lr": 6e-5,
-            "batch_size": 10,
+            "batch_size": 9,
             "weight_decay": 0.01,
         }
         )
