@@ -246,3 +246,7 @@ if __name__ == "__main__":
     trainer.train()
     # breakpoint()
     # from IPython import embed as e; e()
+
+# TODO: compute_metrics or PL!
+# TODO: from scratch
+# TODO: Speech translation
