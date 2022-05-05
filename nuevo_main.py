@@ -272,5 +272,5 @@ if __name__ == "__main__":
 
 # TODO: compute_metrics or PL!
 # TODO: from scratch --> yaml config (一個 config 一個 setting)
-# TODO: AR pretraining
+# TODO: AE pretraining
 # TODO: Speech translation
