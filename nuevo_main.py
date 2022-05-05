@@ -279,7 +279,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
             for ndx in range(0, l, n):
                 yield iterable[ndx:min(ndx + n, l)]
 
-        for bat in batch(zip(label_texts, predicted_texts), 10):
+        for ni, bat in enumerate(batch(zip(label_texts, predicted_texts), 10)):
             bat_label_texts, bat_predicted_texts = zip(*bat)
             bat_label_texts = np.array(bat_label_texts)
             bat_label_texts[bat_label_texts == -100] = tokenizer.pad_token_id
@@ -290,7 +290,8 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 predictions=bat_PRED,
                 references=bat_REAL,
             )
-            print(f"""
+            if ni % 20 == 20 - 1:
+                print(f"""
 Pred: \033[01;31m{bat_PRED[0]}\033[0m
 Refe: \033[01;32m{bat_REAL[0]}\033[0m
 """)
@@ -343,7 +344,7 @@ if __name__ == "__main__":
             per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
-            eval_steps=100,
+            eval_steps=1500,
             evaluation_strategy="steps",
             eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
@@ -351,7 +352,7 @@ if __name__ == "__main__":
             generation_max_length=512,
             
             learning_rate=args.lr,
-            warmup_steps=100,
+            warmup_ratio=0.1,
             
             report_to='wandb' if LOG_WANDB else 'none',
             
