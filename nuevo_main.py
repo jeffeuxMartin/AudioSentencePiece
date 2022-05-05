@@ -8,7 +8,6 @@ logging.warning('== START ==')
 
 import pathlib
 LOG_WANDB = True
-LOG_WANDB = False
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
