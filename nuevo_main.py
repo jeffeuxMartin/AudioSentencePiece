@@ -291,10 +291,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 references=bat_REAL,
             )
             if ni % 20 == 20 - 1:
-                print(f"""
-Pred: \033[01;31m{bat_PRED[0]}\033[0m
-Refe: \033[01;32m{bat_REAL[0]}\033[0m
-""")
+                print(f"\n"f"Pred: \033[01;31m{bat_PRED[0]}\033[0m\n"f"Refe: \033[01;32m{bat_REAL[0]}\033[0m\n""")
         
         return {"wer": metric.compute()}
     return fn
