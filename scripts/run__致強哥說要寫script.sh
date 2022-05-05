@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# hrun -s -GGG -c 8 -m 32 zsh \
+#    AudioSentencePiece/scripts/run__致強哥說要寫script.sh
+
 MAINFILE=AudioSentencePiece/main_former.rewrite.py
 
 export PATH=`
