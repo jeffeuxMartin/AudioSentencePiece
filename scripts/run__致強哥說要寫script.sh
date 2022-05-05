@@ -57,11 +57,11 @@ if [ $GPU_COUNTS -ge 1 ]; then
     OMP_NUM_THREADS=$GPU_COUNTS \
         $DEB -m torch.distributed.launch \
                 --nproc_per_node=$GPU_COUNTS \
-                $MAINFILE $@ 
+                $MAINFILE --vram $VRAM_SIZE $@
                 # AudioSentencePiece/main.py $@ 
 else
     # $DEB new_ver_0425.py $@ 
-    $DEB $MAINFILE $@
+    $DEB $MAINFILE --vram $VRAM_SIZE $@
     # $DEB AudioSentencePiece/main.py $@
 fi
 exit

@@ -1,6 +1,9 @@
 import os
 import argparse
 import torch
+import logging
+FORMAT = '\033[01;31m%(asctime)s\033[0m %(message)s'
+logging.basicConfig(format=FORMAT)
 
 def load_cached(PRINTDEBUG):
     def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
@@ -50,11 +53,19 @@ def get_args():
     parser.add_argument("-b", "--batch_size", type=int, default=6)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
     parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--vram", type=float, default=10)
     args = parser.parse_args()
     
     if args.run_name is None:
         args.run_name = (
             f"lr = {args.lr}, bsz = {args.batch_size}"
+        )
+    
+    batch_scaled_up = max(int(args.vram / 10.), 1)
+    args.batch_size *= batch_scaled_up
+    if batch_scaled_up > 1:
+        logging.warning(
+            f"Batch size resized to {args.batch_size:3d}..."
         )
     
     return args
