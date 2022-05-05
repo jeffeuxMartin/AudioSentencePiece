@@ -46,6 +46,7 @@ from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
 from transformers import BartForConditionalGeneration
 from transformers import Trainer, TrainingArguments, TrainerCallback
+from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from transformers import BartTokenizer
 from transformers import BartConfig
 from datasets import load_metric
@@ -225,9 +226,9 @@ if __name__ == "__main__":
         model.resize_token_embeddings(len(tokenizer))
     # CHECK XXX: resize embedding or config 正確的 embedding 數從頭？
 
-    trainer = Trainer(
+    trainer = Seq2SeqTrainer(
         model=model,
-        args=TrainingArguments(
+        args=Seq2SeqTrainingArguments(
             run_name=args.run_name,
             output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1"
                 / pathlib.Path(strftime(now(), r'%Y%m%d_%H%M%S')),
@@ -241,6 +242,7 @@ if __name__ == "__main__":
             evaluation_strategy="steps",
             eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
+            predict_with_generate=True,
             
             learning_rate=args.lr,
             warmup_steps=100,
