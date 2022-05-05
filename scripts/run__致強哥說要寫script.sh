@@ -30,15 +30,18 @@ unset __conda_setup
 
 cd /home/jeffeuxmartin/AudioWords
 conda activate revived
-echo '============ START! ============'
 
-GPU_COUNTS=$(
-    python3 -c '
+CALCULATE_SCRIPT="$(python3 -c '
 import torch;
-print(torch.cuda.device_count())'
-)
+vram_size = round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 2)
+gpu_count = (torch.cuda.device_count())
+print(f''"""''
+GPU_COUNTS={gpu_count}
+VRAM_SIZE={vram_size}
+''"""'')')"
 
-# echo $GPU_COUNTS
+eval "$CALCULATE_SCRIPT"
+echo "你拿到 $GPU_COUNTS 張 GPU, 每張 VRAM = $VRAM_SIZE GB..."
 
 debug=1
 if [ debug = '1' ]; then
@@ -47,6 +50,7 @@ else
     DEB="python3"
 fi
 
+echo '============ START! ============'
 if [ $GPU_COUNTS -ge 1 ]; then
 # python3 -i
 # python3 -m pdb -c continue -m torch.distributed.launch --nproc_per_node=2 `
