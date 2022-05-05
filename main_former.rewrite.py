@@ -29,7 +29,11 @@ from transformers import BartConfig
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.strategies.ddp import DDPStrategy
+try:
+    from pytorch_lightning.strategies import DDPStrategy
+except:
+    print("Where is DDP?")
+
 from torchmetrics import WordErrorRate
 
 from src.newmodels import SentBart
@@ -571,7 +575,7 @@ if __name__ == "__main__":
         semantic_model = PLNew(BEModel, tokenizer=bart_tokenizer, wandb_logger=wandb_logger if LOG_WANDB else None,
         datasets=(train_dataset, dev_dataset), metric_cls=WordErrorRate, hparams={
             "lr": 6e-5,
-            "batch_size": 9,
+            "batch_size": 5,
             "weight_decay": 0.01,
         }
         )
