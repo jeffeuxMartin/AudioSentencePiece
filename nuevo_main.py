@@ -290,6 +290,10 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 predictions=bat_PRED,
                 references=bat_REAL,
             )
+            print(f"""
+Pred: \033[01;31m{bat_PRED[0]}\033[0m
+Refe: \033[01;32m{bat_REAL[0]}\033[0m
+""")
         
         return {"wer": metric.compute()}
     return fn
