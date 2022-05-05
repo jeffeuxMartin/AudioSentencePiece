@@ -1,10 +1,11 @@
 #!/bin/sh
 
+MAINFILE=AudioSentencePiece/main_former.rewrite.py
+
 export PATH=`
     `/home/jeffeuxmartin/miniconda3/bin:`
     `/home/jeffeuxmartin/.local/bin:`
     `:"$PATH"
-
 
 
 # >>> conda initialize >>>
@@ -49,11 +50,11 @@ if [ $GPU_COUNTS -ge 1 ]; then
     OMP_NUM_THREADS=$GPU_COUNTS \
         $DEB -m torch.distributed.launch \
                 --nproc_per_node=$GPU_COUNTS \
-                AudioSentencePiece/main_former.rewrite.py $@ 
+                $MAINFILE $@ 
                 # AudioSentencePiece/main.py $@ 
 else
     # $DEB new_ver_0425.py $@ 
-    $DEB AudioSentencePiece/main_former.rewrite.py $@
+    $DEB $MAINFILE $@
     # $DEB AudioSentencePiece/main.py $@
 fi
 exit
