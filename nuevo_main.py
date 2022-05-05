@@ -14,11 +14,11 @@ PRETRAINED_PREFIX = pathlib.Path("pret")
 CKPT_PREFIX = pathlib.Path("ckpts")
 EXP_PREFIX = pathlib.Path("exp")
 
+import os
 os.makedirs(EXP_PREFIX / "hf_ckpts/basic_trial1", exists_ok=True)    
 os.makedirs(PRETRAINED_PREFIX / "hf_pretrains", exists_ok=True)    
 os.makedirs(PRETRAINED_PREFIX / "hf_toks", exists_ok=True)    
 
-import os
 os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
 
 import sys
