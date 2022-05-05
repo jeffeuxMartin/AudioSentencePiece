@@ -357,10 +357,8 @@ if __name__ == "__main__":
         ),
         
         # optimizers=optimizers,
-        # train_dataset=train_dataset,
-        train_dataset=dev_dataset,
-        # eval_dataset=dev_dataset,
-        eval_dataset=dummy_dataset,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
         
         data_collator=collate_fn,
         
