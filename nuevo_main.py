@@ -266,8 +266,10 @@ def compute_metrics_WER_logits(tokenizer):  # For ASR, FIXME
 def compute_metrics_WER(tokenizer):  # For ASR, FIXME
     # 1. logits --> id (because of "generate")
     # 2. acc removed
+    import pathlib
+    pathlib.Path('./.cache/preds').mkdir(parents=True, exist_ok=True)
     def fn(eval_preds):  # For ASR, FIXME
-        metric = load_metric("wer")
+        metric = load_metric("wer", cache_dir='./.cache/preds')
         predicted_texts = eval_preds.predictions
         label_texts = eval_preds.label_ids
 
