@@ -270,6 +270,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
 
         attention_masks = label_texts != -100
         sent_lengths = attention_masks.sum(1)
+        breakpoint()
         overlapped = (predicted_texts == label_texts) * attention_masks
         accuracy = (overlapped.sum(1) / sent_lengths).mean(0).item()
         
