@@ -15,14 +15,14 @@ PRETRAINED_PREFIX = pathlib.Path("pret")
 CKPT_PREFIX = pathlib.Path("ckpts")
 EXP_PREFIX = pathlib.Path("exp")
 
-import os
-os.makedirs(EXP_PREFIX / "hf_ckpts/basic_trial1", 
-    exist_ok=True, parents=True)    
-os.makedirs(PRETRAINED_PREFIX / "hf_pretrains", 
-    exist_ok=True, parents=True)    
-os.makedirs(PRETRAINED_PREFIX / "hf_toks", 
-    exist_ok=True, parents=True)    
+pathlib.Path(EXP_PREFIX / "hf_ckpts/basic_trial1"
+    ).mkdir(0o755, parents=True, exist_ok=True)    
+pathlib.Path(PRETRAINED_PREFIX / "hf_pretrains"
+    ).mkdir(0o755, parents=True, exist_ok=True)    
+pathlib.Path(PRETRAINED_PREFIX / "hf_toks"
+    ).mkdir(0o755, parents=True, exist_ok=True)    
 
+import os
 os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
 
 import sys
