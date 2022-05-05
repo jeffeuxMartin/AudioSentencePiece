@@ -8,7 +8,7 @@ logging.warning('== START ==')
 
 import pathlib
 LOG_WANDB = True
-LOG_WANDB = False
+# LOG_WANDB = False
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
@@ -339,16 +339,16 @@ if __name__ == "__main__":
                 / pathlib.Path(strftime(now(), r'%Y%m%d_%H%M%S')),
             
             do_train=True,
-            logging_steps=1,
+            logging_steps=10,
             per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
-            eval_steps=50,
+            eval_steps=100,
             evaluation_strategy="steps",
             eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
             predict_with_generate=True,
-            generation_max_length=500,
+            generation_max_length=512,
             
             learning_rate=args.lr,
             warmup_steps=100,
@@ -360,10 +360,10 @@ if __name__ == "__main__":
         ),
         
         # optimizers=optimizers,
-        # train_dataset=train_dataset,
-        # eval_dataset=dev_dataset,
-        train_dataset=dummy_dataset,
-        eval_dataset=dummy_dataset,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
+        # train_dataset=dummy_dataset,
+        # eval_dataset=dummy_dataset,
         
         data_collator=collate_fn,
         
