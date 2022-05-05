@@ -973,6 +973,18 @@ class SentBartEncoder(BartEncoder):
         )
 
 class SentBart(BartModel):
+    def __init__(self, config: BartConfig):
+        super(BartModel, self).__init__(config)
+
+        padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+        self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+
+        self.encoder = SentBartEncoder(config, self.shared)
+        self.decoder = BartDecoder(config, self.shared)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,

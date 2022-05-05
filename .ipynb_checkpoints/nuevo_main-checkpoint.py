@@ -7,7 +7,7 @@ logging.basicConfig(format=FORMAT)
 logging.warning('== START ==')
 
 import pathlib
-LOG_WANDB = True
+LOG_WANDB = False
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
@@ -87,36 +87,31 @@ def DataSetCollector(infix, collapsed=True):
     logging.warning('== ....      ==')
     with open(DATADIR_PREFIX /
        f'train-clean-100{suffix}/{infix}.en') as f:
-        texts = f.read().strip().split('\n')
+        texts = f.read().split('\n')
 
     with open(DATADIR_PREFIX /
        f'train-clean-100{suffix}/{infix}.unit') as f:
-        original_units = f.read().strip().split('\n')
+        original_units = f.read().split('\n')
 
     with open(DATADIR_PREFIX /
        f'train-clean-100{suffix}/{infix}.len') as f:
-        wordlens = f.read().strip().split('\n')
-    
-    assert len(texts) == len(original_units)
-    assert len(wordlens) == len(original_units)
+        wordlens = f.read().split('\n')
 
     mydataset = MyUnitDataset(original_units, texts, wordlens)
 
     return mydataset
 
-# TODO: 獨立出去 (可以較晚 XXX)
-# TODO: combine & 應該要都可以處理，沒 label 或 length
 def DataSetCollectorUnlength(infix, collapsed=True):
     suffix = "_coll" if collapsed else ""
 
     logging.warning('== ....      ==')
     with open(DATADIR_PREFIX /
        f'train-clean-100{suffix}/{infix}.en') as f:
-        texts = f.read().strip().split('\n')
+        texts = f.read().split('\n')
 
     with open(DATADIR_PREFIX /
        f'train-clean-100{suffix}/{infix}.unit') as f:
-        original_units = f.read().strip().split('\n')
+        original_units = f.read().split('\n')
 
     mydataset = MyUnitDataset(original_units, texts)
 
@@ -244,5 +239,4 @@ if __name__ == "__main__":
     )
 
     trainer.train()
-    # breakpoint()
     # from IPython import embed as e; e()
