@@ -264,17 +264,13 @@ def compute_metrics_WER_logits(tokenizer):  # For ASR, FIXME
     return fn
 
 def compute_metrics_WER(tokenizer):  # For ASR, FIXME
+    # 1. logits --> id (because of "generate")
+    # 2. acc removed
     def fn(eval_preds):  # For ASR, FIXME
         metric = load_metric("wer")
         predicted_texts = eval_preds.predictions
         label_texts = eval_preds.label_ids
 
-        attention_masks = label_texts != -100
-        sent_lengths = attention_masks.sum(1)
-        breakpoint()
-        overlapped = (predicted_texts == label_texts) * attention_masks
-        accuracy = (overlapped.sum(1) / sent_lengths).mean(0).item()
-        
         def batch(iterable, n=1):
             iterable = list(iterable)
             l = len(iterable)
@@ -293,7 +289,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 references=bat_REAL,
             )
         
-        return {"acc": accuracy, "wer": metric.compute()}
+        return {"wer": metric.compute()}
     return fn
 
 logging.warning('== import DONE ==')
