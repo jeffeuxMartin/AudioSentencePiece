@@ -153,7 +153,9 @@ if __name__ == "__main__":
     trainer = Trainer(
         model=model,
         args=TrainingArguments(
+            run_name=args.run_name,
             output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
+            
             do_train=True,
             logging_steps=1,
             per_device_train_batch_size=args.batch_size,

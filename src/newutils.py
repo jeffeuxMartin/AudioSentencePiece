@@ -46,9 +46,15 @@ def mask_generator(X_len, X=None, max_len=None):
 def get_args():
     parser = argparse.ArgumentParser()
     
+    parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("-b", "--batch_size", type=int, default=6)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
     parser.add_argument("--local_rank", type=int, default=0)
     args = parser.parse_args()
+    
+    if args.run_name is None:
+        args.run_name = (
+            f"lr = {args.lr}, bsz = {args.batch_size}"
+        )
     
     return args
