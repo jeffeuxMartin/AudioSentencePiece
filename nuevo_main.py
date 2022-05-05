@@ -156,12 +156,12 @@ if __name__ == "__main__":
             output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
             do_train=True,
             logging_steps=1,
-            per_device_train_batch_size=6,
+            per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
             eval_steps=50,
             evaluation_strategy="steps",
-            per_device_eval_batch_size=6,
+            per_device_eval_batch_size=args.batch_size,
             
             learning_rate=args.lr,
             warmup_steps=100,
