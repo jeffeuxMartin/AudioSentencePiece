@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# region         === importations ===         NOIGER #
 import logging
 FORMAT = '\033[01;31m%(asctime)s\033[0m %(message)s'
 logging.basicConfig(format=FORMAT)
@@ -46,13 +47,16 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from torchmetrics import WordErrorRate
 
+# --- self written --- #
 from src.newmodels import SentBartForConditionalGeneration
 from src.newmodels import pure_advanced_load_pretrained
 from src.newmodels import advanced_load_pretrained
 
+from src.newutils import get_args
 from src.build_tok import build_tokenizer
+# endregion      === importations ===      NOIGERDNE #
 
-
+# region       === classes ===        NOIGER #
 class MyUnitDataset(Dataset):
     def __init__(self, units, texts): 
         self.units = units
@@ -116,59 +120,63 @@ def load_cached_tokenizer(cls, obj_name, saved_path, msg="Loading ..."):
     return tokenizer
 
 logging.warning('== import DONE ==')
+# endregion    === classes ===     NOIGERDNE #
 
-tokenizer = load_cached_tokenizer(
-    cls=BartTokenizer,
-    obj_name='facebook/bart-base',
-    saved_path=PRETRAINED_PREFIX / "hf_toks",
-    msg="Loading ...")
+if __name__ == "__main__":
+    args = get_args()
 
-collate_fn = Data_collate_fn(
-    unit_tokenizer=tokenizer,
-    text_tokenizer=tokenizer,
-)
+    tokenizer = load_cached_tokenizer(
+        cls=BartTokenizer,
+        obj_name='facebook/bart-base',
+        saved_path=PRETRAINED_PREFIX / "hf_toks",
+        msg="Loading ...")
 
-train_dataset = DataSetCollector('train')
-dev_dataset = DataSetCollector('dev')
-test_dataset = DataSetCollector('test')
+    collate_fn = Data_collate_fn(
+        unit_tokenizer=tokenizer,
+        text_tokenizer=tokenizer,
+    )
 
-model = load_cached(
-    BartForConditionalGeneration,
-    "voidful/asr_hubert_cluster_bart_base",
-    PRETRAINED_PREFIX / "hf_pretrains",
-)
+    train_dataset = DataSetCollector('train')
+    dev_dataset = DataSetCollector('dev')
+    test_dataset = DataSetCollector('test')
 
-# TODOLATER: unshared embeddings
-if model.config.vocab_size != len(tokenizer):
-    model.resize_token_embeddings(len(tokenizer))
+    model = load_cached(
+        BartForConditionalGeneration,
+        "voidful/asr_hubert_cluster_bart_base",
+        PRETRAINED_PREFIX / "hf_pretrains",
+    )
 
-trainer = Trainer(
-    model=model,
-    args=TrainingArguments(
-        output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
-        do_train=True,
-        logging_steps=1,
-        per_device_train_batch_size=6,
+    # TODOLATER: unshared embeddings
+    if model.config.vocab_size != len(tokenizer):
+        model.resize_token_embeddings(len(tokenizer))
+
+    trainer = Trainer(
+        model=model,
+        args=TrainingArguments(
+            output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
+            do_train=True,
+            logging_steps=1,
+            per_device_train_batch_size=6,
+            
+            do_eval=True,
+            eval_steps=50,
+            evaluation_strategy="steps",
+            per_device_eval_batch_size=6,
+            
+            learning_rate=args.lr,
+            warmup_steps=100,
+            
+            report_to='wandb',
+            
+            num_train_epochs=3,
+            save_steps=500,
+        ),
         
-        do_eval=True,
-        eval_steps=50,
-        evaluation_strategy="steps",
-        per_device_eval_batch_size=6,
-        
-        learning_rate=2e-4,
-        warmup_steps=100,
-        
-        report_to='wandb',
-        
-        num_train_epochs=3,
-        save_steps=500,
-    ),
-    
-    # optimizers=optimizers,
-    train_dataset=train_dataset,
-    eval_dataset=dev_dataset,
-    data_collator=collate_fn,
-)
+        # optimizers=optimizers,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
+        data_collator=collate_fn,
+    )
 
-trainer.train()
-# from IPython import embed as e; e()
+    trainer.train()
+    # from IPython import embed as e; e()
