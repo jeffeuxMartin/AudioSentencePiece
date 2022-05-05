@@ -10,7 +10,7 @@ MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 
 import os
-os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR"
+os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
 
 import sys
 from itertools import groupby
