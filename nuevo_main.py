@@ -344,6 +344,7 @@ if __name__ == "__main__":
             eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
             predict_with_generate=True,
+            generation_max_length=500,
             
             learning_rate=args.lr,
             warmup_steps=100,
