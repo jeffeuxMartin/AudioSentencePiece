@@ -5,9 +5,14 @@ FORMAT = '\033[01;31m%(asctime)s\033[0m %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.warning('== START ==')
 
+import pathlib
 LOG_WANDB = True
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
+DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
+PRETRAINED_PREFIX = pathlib.Path("pret")
+CKPT_PREFIX = pathlib.Path("ckpts")
+EXP_PREFIX = pathlib.Path("exp")
 
 import os
 os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
@@ -58,14 +63,12 @@ def DataSetCollector(infix, collapsed=True):
     suffix = "_coll" if collapsed else ""
 
     logging.warning('== ....      ==')
-    with open('/storage/LabJob/Projects'
-        '/FairseqCollapse'
-       f'/data/train-clean-100{suffix}/{infix}.en') as f:
+    with open(DATADIR_PREFIX /
+       f'train-clean-100{suffix}/{infix}.en') as f:
         texts = f.read().split('\n')
 
-    with open('/storage/LabJob/Projects'
-        '/FairseqCollapse'
-       f'/data/train-clean-100{suffix}/{infix}.unit') as f:
+    with open(DATADIR_PREFIX /
+       f'train-clean-100{suffix}/{infix}.unit') as f:
         original_units = f.read().split('\n')
 
     mydataset = MyUnitDataset(original_units, texts)
@@ -113,7 +116,7 @@ logging.warning('== import DONE ==')
 tokenizer = load_cached_tokenizer(
     cls=BartTokenizer,
     obj_name='facebook/bart-base',
-    saved_path="/tmp/hf_toks",
+    saved_path=PRETRAINED_PREFIX / "hf_toks",
     msg="Loading ...")
 
 collate_fn = Data_collate_fn(
@@ -128,7 +131,7 @@ test_dataset = DataSetCollector('test')
 model = load_cached(
     BartForConditionalGeneration,
     "voidful/asr_hubert_cluster_bart_base",
-    "/tmp/hf_pretrains",
+    PRETRAINED_PREFIX / "hf_pretrains",
 )
     
 # TODOLATER: unshared embeddings
@@ -138,7 +141,7 @@ if model.config.vocab_size != len(tokenizer):
 trainer = Trainer(
     model=model,
     args=TrainingArguments(
-        output_dir="/tmp/hf_ckpts/basic_trial1",
+        output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
         do_train=True,
         logging_steps=1,
         per_device_train_batch_size=6,
