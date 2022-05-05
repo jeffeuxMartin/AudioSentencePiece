@@ -337,13 +337,13 @@ if __name__ == "__main__":
                 / pathlib.Path(strftime(now(), r'%Y%m%d_%H%M%S')),
             
             do_train=True,
-            logging_steps=10,
+            logging_steps=5,
             per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
-            eval_steps=1500,
+            eval_steps=500,
             evaluation_strategy="steps",
-            eval_accumulation_steps=15,
+            eval_accumulation_steps=25,
             per_device_eval_batch_size=args.batch_size,
             predict_with_generate=True,
             generation_max_length=512,
