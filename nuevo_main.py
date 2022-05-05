@@ -8,6 +8,7 @@ logging.warning('== START ==')
 
 import pathlib
 LOG_WANDB = True
+LOG_WANDB = False
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
@@ -47,6 +48,7 @@ from transformers import BartForConditionalGeneration
 from transformers import Trainer, TrainingArguments, TrainerCallback
 from transformers import BartTokenizer
 from transformers import BartConfig
+from datasets import load_metric
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
@@ -171,6 +173,25 @@ def load_cached_tokenizer(cls, obj_name, saved_path, msg="Loading ..."):
         tokenizer.save_pretrained(saved_path)
     return tokenizer
 
+def compute_metrics_WER(tokenizer):  # For ASR, FIXME
+    def fn(eval_preds):  # For ASR, FIXME
+        metric = load_metric("wer")
+        predictions = eval_preds.predictions
+        predicted_texts = predictions.argmax(-1)
+        label_texts = eval_preds.label_ids
+
+        attention_masks = label_texts != -100
+        sent_lengths = attention_masks.sum(1)
+        overlapped = (predicted_texts == label_texts) * attention_masks
+        accuracy = (overlapped.sum(1) / sent_lengths).mean(0).item()
+        label_texts = [s[m] for s, m in zip(label_texts, attention_masks)]
+        predicted_texts = [s[m] for s, m in zip(predicted_texts, attention_masks)]
+        REAL = tokenizer.batch_decode(label_texts, skip_special_tokens=True)  # TODO: 直接傳進來！不用
+        PRED = tokenizer.batch_decode(predicted_texts, skip_special_tokens=True)
+        
+        return {"acc": accuracy, "wer": metric.compute(predictions=PRED, references=REAL)}
+    return fn
+
 logging.warning('== import DONE ==')
 # endregion    === classes ===     NOIGERDNE #
 
@@ -191,6 +212,7 @@ if __name__ == "__main__":
     train_dataset = DataSetCollector('train')
     dev_dataset = DataSetCollector('dev')
     test_dataset = DataSetCollector('test')
+    dummy_dataset = DataSetCollector('dummy')
 
     model = load_cached(
         BartForConditionalGeneration,
@@ -217,6 +239,7 @@ if __name__ == "__main__":
             do_eval=True,
             eval_steps=50,
             evaluation_strategy="steps",
+            eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
             
             learning_rate=args.lr,
@@ -224,20 +247,30 @@ if __name__ == "__main__":
             
             report_to='wandb' if LOG_WANDB else 'none',
             
-            num_train_epochs=10,
+            num_train_epochs=args.epochs,
             save_steps=500,
         ),
         
         # optimizers=optimizers,
         train_dataset=train_dataset,
         eval_dataset=dev_dataset,
+        
         data_collator=collate_fn,
+        
+        compute_metrics=compute_metrics_WER(tokenizer),
     )
 
-    trainer.train()
+    trainer.train(
+        # 也可以直接寫進 config!
+        ignore_keys_for_eval=[
+            'encoder_last_hidden_state', 
+            'encoder_last_hidden_out_attention_mask',
+        ] + getattr(model.config, "keys_to_ignore_at_inference", []),
+    )
     # breakpoint()
     # from IPython import embed as e; e()
 
 # TODO: compute_metrics or PL!
-# TODO: from scratch
+# TODO: from scratch --> yaml config (一個 config 一個 setting)
+# TODO: AR pretraining
 # TODO: Speech translation
