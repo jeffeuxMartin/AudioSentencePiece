@@ -158,9 +158,9 @@ trainer = Trainer(
         learning_rate=2e-4,
         warmup_steps=100,
         
-        report_to='none',
+        report_to='wandb',
         
-        num_train_epochs=1,
+        num_train_epochs=3,
         save_steps=500,
     ),
     
