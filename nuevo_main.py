@@ -49,6 +49,7 @@ from transformers import Trainer, TrainingArguments, TrainerCallback
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from transformers import BartTokenizer
 from transformers import BartConfig
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 from datasets import load_metric
 
 import pytorch_lightning as pl
@@ -87,6 +88,75 @@ class MyUnitDataset(Dataset):
                 if self.wordlen is not None else 
                 None,
         )
+
+class AugSeq2SeqTrainer(Seq2SeqTrainer):
+    def prediction_step(self,
+        model,
+        inputs,
+        prediction_loss_only,
+        ignore_keys=None,
+    ):
+        if not self.args.predict_with_generate or prediction_loss_only:
+            return super().prediction_step(
+                model, inputs, prediction_loss_only=prediction_loss_only, ignore_keys=ignore_keys
+            )
+
+        has_labels = "labels" in inputs
+        inputs = self._prepare_inputs(inputs)
+
+        # XXX: adapt synced_gpus for fairscale as well
+        gen_kwargs = {
+            "max_length": self._max_length if self._max_length is not None else self.model.config.max_length,
+            "num_beams": self._num_beams if self._num_beams is not None else self.model.config.num_beams,
+            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
+        }
+
+        if "attention_mask" in inputs:
+            gen_kwargs["attention_mask"] = inputs.get("attention_mask", None)
+        if "global_attention_mask" in inputs:
+            gen_kwargs["global_attention_mask"] = inputs.get("global_attention_mask", None)
+        if "word_length_tensor" in inputs:
+            gen_kwargs["word_length_tensor"] = inputs.get("word_length_tensor", None)
+
+        # prepare generation inputs
+        # some encoder-decoder models can have varying encoder's and thus
+        # varying model input names
+        if hasattr(self.model, "encoder") and self.model.encoder.main_input_name != self.model.main_input_name:
+            generation_inputs = inputs[self.model.encoder.main_input_name]
+        else:
+            generation_inputs = inputs[self.model.main_input_name]
+
+        generated_tokens = self.model.generate(
+            generation_inputs,
+            **gen_kwargs,
+        )
+        # in case the batch is shorter than max length, the output should be padded
+        if generated_tokens.shape[-1] < gen_kwargs["max_length"]:
+            generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
+
+        with torch.no_grad():
+            with self.autocast_smart_context_manager():
+                outputs = model(**inputs)
+            if has_labels:
+                if self.label_smoother is not None:
+                    loss = self.label_smoother(outputs, inputs["labels"]).mean().detach()
+                else:
+                    loss = (outputs["loss"] if isinstance(outputs, dict) else outputs[0]).mean().detach()
+            else:
+                loss = None
+
+        if self.args.prediction_loss_only:
+            return (loss, None, None)
+
+        if has_labels:
+            labels = inputs["labels"]
+            if labels.shape[-1] < gen_kwargs["max_length"]:
+                labels = self._pad_tensors_to_max_len(labels, gen_kwargs["max_length"])
+        else:
+            labels = None
+
+        return (loss, generated_tokens, labels)
+
 
 
 def DataSetCollector(infix, collapsed=True):
@@ -174,7 +244,7 @@ def load_cached_tokenizer(cls, obj_name, saved_path, msg="Loading ..."):
         tokenizer.save_pretrained(saved_path)
     return tokenizer
 
-def compute_metrics_WER(tokenizer):  # For ASR, FIXME
+def compute_metrics_WER_logits(tokenizer):  # For ASR, FIXME
     def fn(eval_preds):  # For ASR, FIXME
         metric = load_metric("wer")
         predictions = eval_preds.predictions
@@ -191,6 +261,38 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
         PRED = tokenizer.batch_decode(predicted_texts, skip_special_tokens=True)
         
         return {"acc": accuracy, "wer": metric.compute(predictions=PRED, references=REAL)}
+    return fn
+
+def compute_metrics_WER(tokenizer):  # For ASR, FIXME
+    def fn(eval_preds):  # For ASR, FIXME
+        metric = load_metric("wer")
+        predicted_texts = eval_preds.predictions
+        label_texts = eval_preds.label_ids
+
+        attention_masks = label_texts != -100
+        sent_lengths = attention_masks.sum(1)
+        overlapped = (predicted_texts == label_texts) * attention_masks
+        accuracy = (overlapped.sum(1) / sent_lengths).mean(0).item()
+        
+        def batch(iterable, n=1):
+            iterable = list(iterable)
+            l = len(iterable)
+            for ndx in range(0, l, n):
+                yield iterable[ndx:min(ndx + n, l)]
+
+        for bat in batch(zip(label_texts, predicted_texts), 10):
+            bat_label_texts, bat_predicted_texts = zip(*bat)
+            bat_label_texts = np.array(bat_label_texts)
+            bat_label_texts[bat_label_texts == -100] = tokenizer.pad_token_id
+            bat_predicted_texts = np.array(bat_predicted_texts)
+            bat_REAL = tokenizer.batch_decode(bat_label_texts, skip_special_tokens=True)  # TODO: 直接傳進來！不用
+            bat_PRED = tokenizer.batch_decode(bat_predicted_texts, skip_special_tokens=True)
+            metric.add_batch(
+                predictions=bat_PRED,
+                references=bat_REAL,
+            )
+        
+        return {"acc": accuracy, "wer": metric.compute()}
     return fn
 
 logging.warning('== import DONE ==')
@@ -226,7 +328,7 @@ if __name__ == "__main__":
         model.resize_token_embeddings(len(tokenizer))
     # CHECK XXX: resize embedding or config 正確的 embedding 數從頭？
 
-    trainer = Seq2SeqTrainer(
+    trainer = AugSeq2SeqTrainer(
         model=model,
         args=Seq2SeqTrainingArguments(
             run_name=args.run_name,
@@ -238,7 +340,8 @@ if __name__ == "__main__":
             per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
-            eval_steps=50,
+            # eval_steps=50,
+            eval_steps=20,
             evaluation_strategy="steps",
             eval_accumulation_steps=15,
             per_device_eval_batch_size=args.batch_size,
@@ -254,8 +357,10 @@ if __name__ == "__main__":
         ),
         
         # optimizers=optimizers,
-        train_dataset=train_dataset,
-        eval_dataset=dev_dataset,
+        # train_dataset=train_dataset,
+        train_dataset=dev_dataset,
+        # eval_dataset=dev_dataset,
+        eval_dataset=dummy_dataset,
         
         data_collator=collate_fn,
         
