@@ -28,6 +28,8 @@ os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
 import sys
 from itertools import groupby
 from pprint import pprint
+from datetime import datetime
+strftime, now = datetime.strftime, datetime.now
 
 import numpy as np
 import pandas as pd
@@ -62,23 +64,26 @@ from src.build_tok import build_tokenizer
 
 # region       === classes ===        NOIGER #
 class MyUnitDataset(Dataset):
-    def __init__(self, units, texts, wordlen): 
+    def __init__(self, units, texts=None, wordlen=None): 
         self.units = units
+        if texts is not None:
+            assert len(texts) == len(self.units)
         self.texts = texts
+        if wordlen is not None:
+            assert len(wordlen) == len(self.units)
         self.wordlen = wordlen
     def __len__(self): 
         return len(self.units)
     def __getitem__(self, idx): 
-        return self.units[idx], self.texts[idx], self.wordlen[idx]
-
-class MyUnitDatasetUnlength(Dataset):
-    def __init__(self, units, texts): 
-        self.units = units
-        self.texts = texts
-    def __len__(self): 
-        return len(self.units)
-    def __getitem__(self, idx): 
-        return self.units[idx], self.texts[idx]
+        return (
+            self.units[idx], 
+            self.texts[idx] 
+                if self.texts is not None else 
+                None,
+            self.wordlen[idx] 
+                if self.wordlen is not None else 
+                None,
+        )
 
 
 def DataSetCollector(infix, collapsed=True):
@@ -105,7 +110,6 @@ def DataSetCollector(infix, collapsed=True):
     return mydataset
 
 # TODO: 獨立出去 (可以較晚 XXX)
-# TODO: combine & 應該要都可以處理，沒 label 或 length
 def DataSetCollectorUnlength(infix, collapsed=True):
     suffix = "_coll" if collapsed else ""
 
@@ -123,41 +127,27 @@ def DataSetCollectorUnlength(infix, collapsed=True):
     return mydataset
 
 def Data_collate_fn(unit_tokenizer, text_tokenizer):
+    # done: combine & 應該要都可以處理，沒 label 或 length
     def collate_fn(batch):
         input_ids, labels, wordlens = list(zip(*batch))
-        return dict(
+        output_dict = dict(
             **unit_tokenizer(
                 list(input_ids), 
                 return_tensors='pt', 
                 padding=True, 
-                truncation=True),
-            labels=text_tokenizer(
+                truncation=True))
+        if labels[0] is not None:
+            output_dict["labels"] = text_tokenizer(
                 list(labels), 
                 return_tensors='pt', 
                 padding=True, 
-                truncation=True)['input_ids'],
-            word_length_tensor=torch.tensor(
-                np.array(wordlens, dtype=int)),
-        )
+                truncation=True)['input_ids']
+        if wordlens[0] is not None:
+            output_dict["word_length_tensor"] = torch.tensor(
+                np.array(wordlens, dtype=int))
+        return output_dict
     return collate_fn
-    
-def Data_collate_fnUnlength(unit_tokenizer, text_tokenizer):
-    def collate_fn(batch):
-        input_ids, labels = list(zip(*batch))
-        return dict(
-            **unit_tokenizer(
-                list(input_ids), 
-                return_tensors='pt', 
-                padding=True, 
-                truncation=True),
-            labels=text_tokenizer(
-                list(labels), 
-                return_tensors='pt', 
-                padding=True, 
-                truncation=True)['input_ids'],
-        )
-    return collate_fn
-
+   
 def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
     logging.warning(msg)
     if list(pathlib.Path(saved_path).glob('*')) == []:
@@ -217,7 +207,8 @@ if __name__ == "__main__":
         model=model,
         args=TrainingArguments(
             run_name=args.run_name,
-            output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1",
+            output_dir=EXP_PREFIX / "hf_ckpts/basic_trial1"
+                / pathlib.Path(strftime(now(), r'%Y%m%d_%H%M%S')),
             
             do_train=True,
             logging_steps=1,
