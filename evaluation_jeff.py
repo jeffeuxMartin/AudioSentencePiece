@@ -124,77 +124,85 @@ if __name__ == "__main__":
     )
     model = model.cuda()
 
-
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=6,
+        batch_size=24,
         shuffle=False,
         collate_fn=collate_fn,
     )
 
     model.eval()
-    outtexts_tfor_testset = []
-    with torch.no_grad():
-        for inputs in tqdm(test_dataloader):
-            outputs = model(
-                input_ids=inputs['input_ids'].cuda(),
-                attention_mask=inputs['attention_mask'].cuda(),
-                word_length_tensor=inputs['word_length_tensor'].cuda(),
-            ).logits.argmax(-1)
-
-            outtexts_tfor = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            outtexts_tfor_testset.extend(outtexts_tfor)
-
-    for real, pred in zip(test_dataset.texts, outtexts_tfor_testset):
-        print(f"""
-PRED: \033[01;31m{pred}\033[0m
-REAL: \033[01;32m{real}\033[0m
-"""[1:-1])
-    print("WER = {:6.4f} % (no beam)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_tfor_testset)))
-
+    
+    # ---------------------
     outtexts_real_testset = []
+    outtexts_real_testset2 = []
     with torch.no_grad():
-        for inputs in tqdm(test_dataloader):
+        # for inputs, transcription in tqdm(zip(test_dataloader, test_dataset.texts), total=len(test_dataset.texts)):
+        for batch_idx, batch in enumerate(tqdm(test_dataloader)):
             outputs_real = model.generate(
-                input_ids=inputs['input_ids'].cuda(),
-                attention_mask=inputs['attention_mask'].cuda(),
-                word_length_tensor=inputs['word_length_tensor'].cuda(),
-                max_length=512,
+                input_ids=batch['input_ids'].cuda(),
+                attention_mask=batch['attention_mask'].cuda(),
+                word_length_tensor=batch['word_length_tensor'].cuda(),
+                max_length=1024,
+            )
+            outputs_real2 = model.generate(
+                input_ids=batch['input_ids'].cuda(),
+                attention_mask=batch['attention_mask'].cuda(),
+                word_length_tensor=None,
+                max_length=1024,
             )
 
             outtexts_real = tokenizer.batch_decode(outputs_real, skip_special_tokens=True)
             outtexts_real_testset.extend(outtexts_real)
+            outtexts_real2 = tokenizer.batch_decode(outputs_real2, skip_special_tokens=True)
+            outtexts_real_testset2.extend(outtexts_real2)
 
-    for real, pred in zip(test_dataset.texts, outtexts_tfor_testset):
-        print(f"""
-PRED: \033[01;33m{pred}\033[0m
-REAL: \033[01;32m{real}\033[0m
-"""[1:-1])
+            demo_template = (
+                "PRED:         \033[01;33m{PRED}\033[0m\n"
+                "PRED(no len): \033[00;33m{PRED2}\033[0m\n"
+                "REAL:         \033[01;32m{REAL}\033[0m\n")
+            print('\n'.join([
+                demo_template.format(PRED=pred, PRED2=pred2, REAL=transcription) 
+                    for pred, pred2, transcription in zip(
+                        outtexts_real, 
+                        outtexts_real2, 
+                        test_dataset.texts[
+                            test_dataloader.batch_size * batch_idx
+                            :
+                            test_dataloader.batch_size * (batch_idx + 1)
+                        ])]))
+    print()    
     print("WER = {:6.4f} % (AR generation)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_real_testset)))
-
-    outtexts_tfor_testset = []
-    with torch.no_grad():
-        for inputs in tqdm(test_dataloader):
-            outputs = model(
-                input_ids=inputs['input_ids'].cuda(),
-                attention_mask=inputs['attention_mask'].cuda(),
-            ).logits.argmax(-1)
-
-            outtexts_tfor = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            outtexts_tfor_testset.extend(outtexts_tfor)
-
-    print("WER = {:6.4f} % (no beam, no length)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_tfor_testset)))
-
+    print("WER = {:6.4f} % (AR generation, no length)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_real_testset2)))
+    exit()
+    # ---------------------
+    # ---------------------
     outtexts_real_testset = []
     with torch.no_grad():
-        for inputs in tqdm(test_dataloader):
+        # for inputs, transcription in tqdm(zip(test_dataloader, test_dataset.texts), total=len(test_dataset.texts)):
+        for batch_idx, batch in tqdm(test_dataloader):
             outputs_real = model.generate(
                 input_ids=inputs['input_ids'].cuda(),
                 attention_mask=inputs['attention_mask'].cuda(),
-                max_length=512,
+                word_length_tensor=inputs['word_length_tensor'].cuda(),
+                max_length=1024,
             )
 
             outtexts_real = tokenizer.batch_decode(outputs_real, skip_special_tokens=True)
             outtexts_real_testset.extend(outtexts_real)
 
-    print("WER = {:6.4f} % (AR generation, no length)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_real_testset)))
+            demo_template = (
+                "PRED: \033[01;33m{PRED}\033[0m\n"
+                "REAL: \033[01;32m{REAL}\033[0m\n")
+            print('\n'.join([
+                demo_template.format(PRED=pred, REAL=transcription) 
+                    for pred, transcription in zip(
+                        outtexts_real, 
+                        test_dataset.texts[
+                            test_dataloader.batch_size * batch_idx
+                            :
+                            test_dataloader.batch_size * (batch_idx + 1)
+                        ])]))
+    print("WER = {:6.4f} % (AR generation)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_real_testset)))
+    
+    # ---------------------

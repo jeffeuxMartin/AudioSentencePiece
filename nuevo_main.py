@@ -382,3 +382,4 @@ if __name__ == "__main__":
 # TODO: from scratch --> yaml config (一個 config 一個 setting)
 # TODO: AE pretraining
 # TODO: Speech translation
+# TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)

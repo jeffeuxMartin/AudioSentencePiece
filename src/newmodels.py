@@ -917,8 +917,9 @@ class SentBartEncoder(BartEncoder):
                       # out_attention_mask := (
                       #     encoder_output_attention_mask)
          _, _) = self.sent_retriever(
-             encoder_outputs.last_hidden_state, 
-             word_length_tensor)
+             encoder_outputs.last_hidden_state,
+             word_length_tensor=word_length_tensor,
+             padding_mask=1 - attention_mask)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if not return_dict:
@@ -938,6 +939,7 @@ class SentBartEncoder(BartEncoder):
     def sent_retriever(self, 
         encoder__last_hidden_state, 
         word_length_tensor=None,
+        padding_mask=None,
         return_all=False,
         return_original=False,
       ):
@@ -948,13 +950,15 @@ class SentBartEncoder(BartEncoder):
             self.word_extractor(
                 encoder__last_hidden_state,
                 alpha=alpha_values,
-                padding_mask=None,
+                padding_mask=padding_mask,
                 target_lengths=word_length_tensor,
             )
         )
         # TODO: Keep all CIF
         [encoder_word_representation] = encoder__word_representations_CIF['cif_out']
+        [pred_word_lengths] = encoder__word_representations_CIF['cif_lengths']
         encoder_word_representation = encoder_word_representation.contiguous()
+        pred_word_lengths = pred_word_lengths.contiguous()
             # aliased as `encoder_word_representation`
             # FIXME: distributed problem!
             # TODO: add other CIF ouptuts!
@@ -962,9 +966,8 @@ class SentBartEncoder(BartEncoder):
         encoder_output_attention_mask = (
             mask_generator(word_length_tensor) 
             if word_length_tensor is not None else
-            None)
-        
-        
+            mask_generator(pred_word_lengths))
+            
         return (
             encoder_word_representation, 
             encoder_output_attention_mask, 
@@ -1252,9 +1255,12 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
                 encoder_outputs,
                 **model_kwargs,
         ))
-        if "word_length_tensor" in model_kwargs:
+        if "word_length_tensor" in model_kwargs and model_kwargs.get("word_length_tensor") is not None:
             word_length_tensor = model_kwargs["word_length_tensor"]
             model_kwargs["word_length_tensor"] = word_length_tensor.index_select(0, expanded_return_idx)
+        elif "word_length_tensor" in model_kwargs and model_kwargs.get("word_length_tensor") is None:
+            model_kwargs.pop("word_length_tensor")
+        # TODO: maybe check model arch?
 
         if "encoder_outputs" in model_kwargs:
             if "out_attention_mask" in encoder_outputs:
