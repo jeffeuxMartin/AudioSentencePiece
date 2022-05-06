@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=6,
+        batch_size=24 * 6,
         shuffle=False,
         collate_fn=collate_fn,
     )
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     outtexts_tfor_testset = []
     with torch.no_grad():
         for inputs in tqdm(test_dataloader):
-            outputs = model.generate(
+            outputs = model(
                 input_ids=inputs['input_ids'].cuda(),
                 attention_mask=inputs['attention_mask'].cuda(),
                 word_length_tensor=inputs['word_length_tensor'].cuda(),
@@ -152,6 +152,15 @@ REAL: \033[01;32m{real}\033[0m
 """[1:-1])
     print("WER = {:6.4f} % (no beam)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_tfor_testset)))
 
+    #####################3
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=6,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
+    #####################3
+    
     outtexts_real_testset = []
     with torch.no_grad():
         for inputs in tqdm(test_dataloader):
@@ -170,7 +179,7 @@ REAL: \033[01;32m{real}\033[0m
     outtexts_tfor_testset = []
     with torch.no_grad():
         for inputs in tqdm(test_dataloader):
-            outputs = model.generate(
+            outputs = model(
                 input_ids=inputs['input_ids'].cuda(),
                 attention_mask=inputs['attention_mask'].cuda(),
             )
