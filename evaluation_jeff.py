@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=20 * 6,
+        batch_size=6,
         shuffle=False,
         collate_fn=collate_fn,
     )
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                 input_ids=inputs['input_ids'].cuda(),
                 attention_mask=inputs['attention_mask'].cuda(),
                 word_length_tensor=inputs['word_length_tensor'].cuda(),
-            )
+            ).logits.argmax(-1)
 
             outtexts_tfor = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             outtexts_tfor_testset.extend(outtexts_tfor)
@@ -152,15 +152,6 @@ REAL: \033[01;32m{real}\033[0m
 """[1:-1])
     print("WER = {:6.4f} % (no beam)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_tfor_testset)))
 
-    #####################3
-    test_dataloader = DataLoader(
-        test_dataset,
-        batch_size=6,
-        shuffle=False,
-        collate_fn=collate_fn,
-    )
-    #####################3
-    
     outtexts_real_testset = []
     with torch.no_grad():
         for inputs in tqdm(test_dataloader):
@@ -174,6 +165,11 @@ REAL: \033[01;32m{real}\033[0m
             outtexts_real = tokenizer.batch_decode(outputs_real, skip_special_tokens=True)
             outtexts_real_testset.extend(outtexts_real)
 
+    for real, pred in zip(test_dataset.texts, outtexts_tfor_testset):
+        print(f"""
+PRED: \033[01;33m{pred}\033[0m
+REAL: \033[01;32m{real}\033[0m
+"""[1:-1])
     print("WER = {:6.4f} % (AR generation)".format(100 * jiwer.wer(truth=test_dataset.texts, hypothesis=outtexts_real_testset)))
 
     outtexts_tfor_testset = []
@@ -182,7 +178,7 @@ REAL: \033[01;32m{real}\033[0m
             outputs = model(
                 input_ids=inputs['input_ids'].cuda(),
                 attention_mask=inputs['attention_mask'].cuda(),
-            )
+            ).logits.argmax(-1)
 
             outtexts_tfor = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             outtexts_tfor_testset.extend(outtexts_tfor)
