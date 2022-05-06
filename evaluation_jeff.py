@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     test_dataloader = DataLoader(
         test_dataset,
-        batch_size=24 * 6,
+        batch_size=20 * 6,
         shuffle=False,
         collate_fn=collate_fn,
     )
