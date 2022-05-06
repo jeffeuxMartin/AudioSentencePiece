@@ -119,7 +119,7 @@ if __name__ == "__main__":
     model = load_cached(
         SentBartForConditionalGeneration,
         "voidful/asr_hubert_cluster_bart_base",
-        './Golden/checkpoint-8000/',
+        'Golden/checkpoint-8000/',
     )
     model = model.cuda()
 
