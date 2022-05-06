@@ -3,7 +3,7 @@
 # hrun -s -GGG -c 8 -m 32 zsh \
 #    AudioSentencePiece/scripts/run__致強哥說要寫script.sh
 
-MAINFILE=AudioSentencePiece/nuevo_main.py
+MAINFILE=AudioSentencePiece/nuevo_main_fromScratch.py
 
 export PATH=`
     `/home/jeffeuxmartin/miniconda3/bin:`
