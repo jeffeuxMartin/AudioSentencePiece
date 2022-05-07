@@ -57,6 +57,7 @@ def get_args():
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--vram", type=float, default=10)
     parser.add_argument("--notcoll", action='store_false', type=bool, default=True)
+    breakpoint()
     args = parser.parse_args()
 
     batch_scaled_up = max(int(args.vram / 10.), 1)
