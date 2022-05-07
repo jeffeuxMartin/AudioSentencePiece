@@ -61,6 +61,26 @@ def DataSetCollector(infix, collapsed=True):
     mydataset = MyUnitDataset(original_units, texts, wordlens)
 
     return mydataset
+
+def DataSetCollectorBetter(filepath):
+
+    logging.warning('== ....      ==')
+    with open(f'{filepath}.en') as f:
+        texts = f.read().strip().split('\n')
+
+    with open(f'{filepath}.unit') as f:
+        original_units = f.read().strip().split('\n')
+
+    with open(f'{filepath}.len') as f:
+        wordlens = f.read().strip().split('\n')
+
+    assert len(texts) == len(original_units)
+    assert len(wordlens) == len(original_units)
+
+    mydataset = MyUnitDataset(original_units, texts, wordlens)
+
+    return mydataset
+
 def Data_collate_fn(unit_tokenizer, text_tokenizer):
     # done: combine & 應該要都可以處理，沒 label 或 length
     def collate_fn(batch):
@@ -115,8 +135,13 @@ if __name__ == "__main__":
         unit_tokenizer=tokenizer,
         text_tokenizer=tokenizer,
     )
-    dev_dataset = DataSetCollector('dev')
-    test_dataset = DataSetCollector('test')
+    # dev_dataset = DataSetCollector('dev')
+    # test_dataset = DataSetCollector('test')
+    # test_dataset = DataSetCollectorBetter(
+    #     DATADIR_PREFIX /
+    #         f'train-clean-100_coll/test')
+    test_dataset = DataSetCollectorBetter(
+        '/storage/LabJob/Projects/AudioWords/data/LibriSpeech_unit/test-clean-100_coll')
     model = load_cached(
         SentBartForConditionalGeneration,
         "voidful/asr_hubert_cluster_bart_base",

@@ -7,6 +7,7 @@ logging.basicConfig(format=FORMAT)
 logging.warning('== START ==')
 
 import pathlib
+from pathlib import Path
 LOG_WANDB = True
 # LOG_WANDB = False
 MAXUNITLEN = 1024
@@ -15,6 +16,7 @@ DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
 PRETRAINED_PREFIX = pathlib.Path("pret")
 CKPT_PREFIX = pathlib.Path("ckpts")
 EXP_PREFIX = pathlib.Path("exp")
+LIBRISPEECH_UNIT_PATH = "data/LibriSpeechUnits"
 
 pathlib.Path(EXP_PREFIX / "hf_ckpts/basic_trial1"
     ).mkdir(0o755, parents=True, exist_ok=True)    
@@ -24,7 +26,7 @@ pathlib.Path(PRETRAINED_PREFIX / "hf_toks"
     ).mkdir(0o755, parents=True, exist_ok=True)    
 
 import os
-os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May05"
+os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May07"
 
 import sys
 from itertools import groupby
@@ -181,6 +183,26 @@ def DataSetCollector(infix, collapsed=True):
     mydataset = MyUnitDataset(original_units, texts, wordlens)
 
     return mydataset
+    
+def DataSetCollectorBetter(filepath):
+
+    logging.warning('== ....      ==')
+    with open(f'{filepath}.en') as f:
+        texts = f.read().strip().split('\n')
+
+    with open(f'{filepath}.unit') as f:
+        original_units = f.read().strip().split('\n')
+
+    with open(f'{filepath}.len') as f:
+        wordlens = f.read().strip().split('\n')
+
+    assert len(texts) == len(original_units)
+    assert len(wordlens) == len(original_units)
+
+    mydataset = MyUnitDataset(original_units, texts, wordlens)
+
+    return mydataset
+
 
 # TODO: 獨立出去 (可以較晚 XXX)
 def DataSetCollectorUnlength(infix, collapsed=True):
@@ -198,6 +220,55 @@ def DataSetCollectorUnlength(infix, collapsed=True):
     mydataset = MyUnitDataset(original_units, texts)
 
     return mydataset
+
+        
+def DataSetCollectorGeneral(
+    prefix_path, split, dtype2subdir_ext=None,
+):
+    dtype2subdir_ext = ({
+        'texts': dict(
+            subdir='texts',
+            ext='txt',
+        ),
+        'original_units': dict(
+            subdir='symbolunits',
+            ext='symbolunit',
+        ),
+        'wordlens': dict(
+            subdir='lengths',
+            ext='len',
+        ),
+    } if dtype2subdir_ext is None else
+    dtype2subdir_ext)
+
+    logging.warning('== ....      ==')
+    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+        split=split, 
+        subdir=dtype2subdir_ext['texts']['subdir'],
+        ext=dtype2subdir_ext['texts']['ext'],
+    )) as f:
+        texts = f.read().strip().split('\n')
+
+    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+        split=split, 
+        subdir=dtype2subdir_ext['original_units']['subdir'],
+        ext=dtype2subdir_ext['original_units']['ext'],
+    )) as f:
+        original_units = f.read().strip().split('\n')
+    assert len(texts) == len(original_units)
+
+    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+        split=split, 
+        subdir=dtype2subdir_ext['wordlens']['subdir'],
+        ext=dtype2subdir_ext['wordlens']['ext'],
+    )) as f:
+        wordlens = f.read().strip().split('\n')
+    assert len(wordlens) == len(original_units)
+
+    mydataset = MyUnitDataset(original_units, texts, wordlens)
+
+    return mydataset
+
 
 def Data_collate_fn(unit_tokenizer, text_tokenizer):
     # done: combine & 應該要都可以處理，沒 label 或 length
@@ -313,10 +384,23 @@ if __name__ == "__main__":
         text_tokenizer=tokenizer,
     )
 
-    train_dataset = DataSetCollector('train')
-    dev_dataset = DataSetCollector('dev')
-    test_dataset = DataSetCollector('test')
-    dummy_dataset = DataSetCollector('dummy')
+    train_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100')
+    dev_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean')
+    # test_dataset     = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean')
+    dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
+    dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
+    dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
+        dtype2subdir_ext={
+            'texts': dict(
+                subdir='texts',
+                ext='txt',
+            ),
+            'original_units': dict(
+                subdir='symbolunits',
+                ext='symbolunit',
+            ),
+        }
+    )
 
     model = load_cached(
         BartForConditionalGeneration,
@@ -358,10 +442,10 @@ if __name__ == "__main__":
         ),
         
         # optimizers=optimizers,
-        train_dataset=train_dataset,
-        eval_dataset=dev_dataset,
-        # train_dataset=dummy_dataset,
-        # eval_dataset=dummy_dataset,
+        # train_dataset=train_dataset,
+        # eval_dataset=dev_dataset,
+        train_dataset=dummy_traindataset,
+        eval_dataset=dummy_devdataset,
         
         data_collator=collate_fn,
         

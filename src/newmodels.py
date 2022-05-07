@@ -115,6 +115,7 @@ if """old""":
             # == encoder == #
             self.alpha_predictor = nn.Linear(embed_dim, 1)  # TODO: check!
             self.word_extractor = word_extractor
+            # cif_out, cif_lengths, alpha_sum, delays, tail_weights
             self.length_predictor = nn.Linear(embed_dim, 1)
 
         def forward(
@@ -944,7 +945,12 @@ class SentBartEncoder(BartEncoder):
         return_original=False,
       ):
         alpha_values = self.alpha_predictor(encoder__last_hidden_state)
-        alpha_values = alpha_values.squeeze(-1).sigmoid()
+        alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
+        if word_length_tensor is None:
+            print("No given! self predict")
+            word_length_tensor = alpha_values.sum(-1).long()
+        else:
+            print("Wordlen given")
 
         encoder__word_representations_CIF = (
             self.word_extractor(
@@ -967,6 +973,7 @@ class SentBartEncoder(BartEncoder):
             mask_generator(word_length_tensor) 
             if word_length_tensor is not None else
             mask_generator(pred_word_lengths))
+            # TODO: check length prediction!
             
         return (
             encoder_word_representation, 
