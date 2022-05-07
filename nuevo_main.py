@@ -225,7 +225,10 @@ def DataSetCollectorUnlength(infix, collapsed=True):
 def DataSetCollectorGeneral(
     prefix_path, split, dtype2subdir_ext=None,
 ):
-    dtype2subdir_ext = ({
+    dtype2subdir_ext = ({} 
+        if dtype2subdir_ext is None else 
+        dtype2subdir_ext)
+    dtype2subdir_ext_default = {
         'texts': dict(
             subdir='texts',
             ext='txt',
@@ -238,8 +241,10 @@ def DataSetCollectorGeneral(
             subdir='lengths',
             ext='len',
         ),
-    } if dtype2subdir_ext is None else
-    dtype2subdir_ext)
+    }
+    
+    dtype2subdir_ext_default.update(dtype2subdir_ext)
+    dtype2subdir_ext = dtype2subdir_ext_default
 
     logging.warning('== ....      ==')
     with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
@@ -348,7 +353,7 @@ def compute_metrics_WER_logits(tokenizer):  # For ASR, FIXME
         return {"acc": accuracy, "wer": metric.compute(predictions=PRED, references=REAL)}
     return fn
 
-def compute_metrics_WER(tokenizer):  # For ASR, FIXME
+def compute_metrics_WER(tokenizer, metric_batch=10, verbose_batch=20):  # For ASR, FIXME
     # 1. logits --> id (because of "generate")
     # 2. acc removed
     import pathlib
@@ -364,7 +369,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
             for ndx in range(0, l, n):
                 yield iterable[ndx:min(ndx + n, l)]
 
-        for ni, bat in enumerate(batch(zip(label_texts, predicted_texts), 10)):
+        for ni, bat in enumerate(batch(zip(label_texts, predicted_texts), metric_batch)):
             bat_label_texts, bat_predicted_texts = zip(*bat)
             bat_label_texts = np.array(bat_label_texts)
             bat_label_texts[bat_label_texts == -100] = tokenizer.pad_token_id
@@ -375,8 +380,9 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 predictions=bat_PRED,
                 references=bat_REAL,
             )
-            if ni % 20 == 20 - 1:
-                print(f"\n"f"Pred: \033[01;31m{bat_PRED[0]}\033[0m\n"f"Refe: \033[01;32m{bat_REAL[0]}\033[0m\n""")
+            if verbose_batch > 0:
+                if ni % verbose_batch == verbose_batch - 1:
+                    print(f"\n"f"Pred: \033[01;31m{bat_PRED[0]}\033[0m\n"f"Refe: \033[01;32m{bat_REAL[0]}\033[0m\n""")
         
         return {"wer": metric.compute()}
     return fn
@@ -398,8 +404,22 @@ if __name__ == "__main__":
         text_tokenizer=tokenizer,
     )
 
-    train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100')
-    dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean')
+    train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100',
+        dtype2subdir_ext={
+            'original_units': dict(
+                subdir='collunits' if args.coll else 'symbolunits',
+                ext='collunit' if args.coll else 'symbolunit',
+            )
+        }
+    )
+    dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean',
+        dtype2subdir_ext={
+            'original_units': dict(
+                subdir='collunits' if args.coll else 'symbolunits',
+                ext='collunit' if args.coll else 'symbolunit',
+            )
+        }
+    )
     # test_dataset       = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean')
     # dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
     # dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
@@ -443,9 +463,9 @@ if __name__ == "__main__":
             eval_steps=args.eval_steps,
             evaluation_strategy="steps",
             eval_accumulation_steps=25,
-            per_device_eval_batch_size=int(args.batch_size * 2 / 3),
+            per_device_eval_batch_size=args.batch_size * 2,
             predict_with_generate=True,
-            generation_max_length=512,
+            generation_max_length=1024,
             
             learning_rate=args.lr,
             warmup_ratio=0.1,
@@ -464,7 +484,10 @@ if __name__ == "__main__":
         
         data_collator=collate_fn,
         
-        compute_metrics=compute_metrics_WER(tokenizer),
+        compute_metrics=compute_metrics_WER(tokenizer,
+            metric_batch=20,
+            verbose_batch=20,
+        ),
     )
 
     trainer.train(
@@ -482,3 +505,4 @@ if __name__ == "__main__":
 # TODO: AE pretraining
 # TODO: Speech translation
 # TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)
+# FIXME: ddp repeat 3 times?
