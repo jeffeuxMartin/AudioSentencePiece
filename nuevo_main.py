@@ -404,8 +404,8 @@ if __name__ == "__main__":
     dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
     dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
     dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
-        dtype2subdir_ext.get({
-            'texts', {}).get(dic),
+        dtype2subdir_ext={
+            'texts': dict(
                 subdir='texts',
                 ext='txt',
             ),
