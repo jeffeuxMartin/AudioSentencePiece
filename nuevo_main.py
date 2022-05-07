@@ -398,23 +398,23 @@ if __name__ == "__main__":
         text_tokenizer=tokenizer,
     )
 
-    train_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100')
-    dev_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean')
-    # test_dataset     = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean')
-    dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
-    dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
-    dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
-        dtype2subdir_ext={
-            'texts': dict(
-                subdir='texts',
-                ext='txt',
-            ),
-            'original_units': dict(
-                subdir='symbolunits',
-                ext='symbolunit',
-            ),
-        }
-    )
+    train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100')
+    dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean')
+    # test_dataset       = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean')
+    # dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
+    # dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
+    # dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
+    #     dtype2subdir_ext={
+    #         'texts': dict(
+    #             subdir='texts',
+    #             ext='txt',
+    #         ),
+    #         'original_units': dict(
+    #             subdir='symbolunits',
+    #             ext='symbolunit',
+    #         ),
+    #     }
+    # )
 
     model = load_cached(
         BartForConditionalGeneration,
@@ -458,8 +458,8 @@ if __name__ == "__main__":
         # optimizers=optimizers,
         # train_dataset=train_dataset,
         # eval_dataset=dev_dataset,
-        train_dataset=dummy_traindataset,
-        eval_dataset=dummy_devdataset,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
         
         data_collator=collate_fn,
         
