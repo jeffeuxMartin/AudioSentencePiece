@@ -8,8 +8,6 @@ logging.warning('== START ==')
 
 import pathlib
 from pathlib import Path
-LOG_WANDB = True
-# LOG_WANDB = False
 MAXUNITLEN = 1024
 MAXTEXTLEN = 512
 DATADIR_PREFIX = pathlib.Path("data/fairseq_data/data")
@@ -46,11 +44,12 @@ from torch.utils.data import Dataset, DataLoader
 import transformers
 from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
-from transformers import BartForConditionalGeneration
+# from transformers import BartForConditionalGeneration
 from transformers import Trainer, TrainingArguments, TrainerCallback
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from transformers import BartTokenizer
 from transformers import BartConfig
+from transformers import AutoConfig
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from datasets import load_metric
 
@@ -60,7 +59,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torchmetrics import WordErrorRate
 
 # --- self written --- #
-from src.newmodels import SentBartForConditionalGeneration as BartForConditionalGeneration
+from src.newmodels import SentBartForConditionalGeneration
 from src.newmodels import pure_advanced_load_pretrained
 from src.newmodels import advanced_load_pretrained
 
@@ -70,11 +69,13 @@ from src.build_tok import build_tokenizer
 
 # region       === classes ===        NOIGER #
 class MyUnitDataset(Dataset):
-    def __init__(self, units, texts=None, wordlen=None): 
+    def __init__(self, units, texts=None, wordlen=None, lower=False): 
         self.units = units
         if texts is not None:
             assert len(texts) == len(self.units)
         self.texts = texts
+        if lower:
+            self.texts = [s.lower() for s in self.texts]
         if wordlen is not None:
             assert len(wordlen) == len(self.units)
         self.wordlen = wordlen
@@ -161,7 +162,7 @@ class AugSeq2SeqTrainer(Seq2SeqTrainer):
 
 
 
-def DataSetCollector(infix, collapsed=True):
+def DataSetCollector(infix, collapsed=True, lower=False):
     suffix = "_coll" if collapsed else ""
 
     logging.warning('== ....      ==')
@@ -180,11 +181,11 @@ def DataSetCollector(infix, collapsed=True):
     assert len(texts) == len(original_units)
     assert len(wordlens) == len(original_units)
 
-    mydataset = MyUnitDataset(original_units, texts, wordlens)
+    mydataset = MyUnitDataset(original_units, texts, wordlens, lower=lower)
 
     return mydataset
     
-def DataSetCollectorBetter(filepath):
+def DataSetCollectorBetter(filepath, lower=False):
 
     logging.warning('== ....      ==')
     with open(f'{filepath}.en') as f:
@@ -199,13 +200,13 @@ def DataSetCollectorBetter(filepath):
     assert len(texts) == len(original_units)
     assert len(wordlens) == len(original_units)
 
-    mydataset = MyUnitDataset(original_units, texts, wordlens)
+    mydataset = MyUnitDataset(original_units, texts, wordlens, lower=lower)
 
     return mydataset
 
 
 # TODO: 獨立出去 (可以較晚 XXX)
-def DataSetCollectorUnlength(infix, collapsed=True):
+def DataSetCollectorUnlength(infix, collapsed=True, lower=False):
     suffix = "_coll" if collapsed else ""
 
     logging.warning('== ....      ==')
@@ -223,7 +224,7 @@ def DataSetCollectorUnlength(infix, collapsed=True):
 
         
 def DataSetCollectorGeneral(
-    prefix_path, split, dtype2subdir_ext=None,
+    prefix_path, split, dtype2subdir_ext=None, lower=False,
 ):
     dtype2subdir_ext = ({} 
         if dtype2subdir_ext is None else 
@@ -284,7 +285,7 @@ def DataSetCollectorGeneral(
         #       "\033[0m")
         wordlens = None
 
-    mydataset = MyUnitDataset(original_units, texts, wordlens)
+    mydataset = MyUnitDataset(original_units, texts, wordlens, lower=lower)
 
     return mydataset
 
@@ -318,9 +319,40 @@ def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
     if os.path.isdir(saved_path):
         logging.warning('    (Using local cache...)')
         obj = cls.from_pretrained(saved_path)
+        # obj = advanced_load_pretrained(obj_name, cls, type(config), **config)
     else:
         logging.warning('    (Loading pretrained...)')
         obj = cls.from_pretrained(obj_name)
+        # obj = advanced_load_pretrained(obj_name, cls, type(config), **config)
+        obj.save_pretrained(saved_path)
+    return obj
+
+def load_cached_config(cls, obj_name, saved_path, config=None, msg="Loading ..."):
+    """ 
+    If enter this, USE pretrained (local or remot) is confirmed! 
+    We try to match maximized!
+    Otherwise, 
+        config = AutoConfig(collapse_n=-1)
+        model = cls(config)
+    """
+    
+    config = {} if config is None else config
+    logging.warning(msg)
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
+    if os.path.isdir(saved_path):
+        # print(saved_path)
+        logging.warning('    (Using local cache...)')
+        # obj = cls.from_pretrained(saved_path)
+        obj = advanced_load_pretrained(saved_path, cls, AutoConfig, **config)
+    else:
+        pathlib.Path(saved_path
+            ).mkdir(0o755, parents=True, exist_ok=True)    
+        logging.warning('    (Loading pretrained...)')
+        # pretrained_config = config
+        # obj = cls.from_pretrained(obj_name, config)
+        obj = advanced_load_pretrained(obj_name, cls, AutoConfig, **config)
         obj.save_pretrained(saved_path)
     return obj
 
@@ -404,7 +436,7 @@ if __name__ == "__main__":
         text_tokenizer=tokenizer,
     )
 
-    train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100',
+    train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100', lower=args.lower,
         dtype2subdir_ext={
             'original_units': dict(
                 subdir='collunits' if args.coll else 'symbolunits',
@@ -412,7 +444,7 @@ if __name__ == "__main__":
             )
         }
     )
-    dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean',
+    dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean', lower=args.lower,
         dtype2subdir_ext={
             'original_units': dict(
                 subdir='collunits' if args.coll else 'symbolunits',
@@ -420,10 +452,10 @@ if __name__ == "__main__":
             )
         }
     )
-    # test_dataset       = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean')
-    # dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
-    # dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
-    # dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
+    # test_dataset       = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean', lower=args.lower)
+    # dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy', lower=args.lower)
+    # dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy', lower=args.lower)
+    # dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy', lower=args.lower,
     #     dtype2subdir_ext={
     #         'texts': dict(
     #             subdir='texts',
@@ -436,11 +468,14 @@ if __name__ == "__main__":
     #     }
     # )
 
-    model = load_cached(
-        BartForConditionalGeneration,
+    exp_config = dict(collapse_n=-1 if args.original else 0)
+    model = load_cached_config(
+        SentBartForConditionalGeneration,
         "voidful/asr_hubert_cluster_bart_base",
-        PRETRAINED_PREFIX / "hf_pretrains",
+        saved_path=PRETRAINED_PREFIX / "hf_pretrains" / "default",
+        config=exp_config
     )
+    assert all([getattr(model.config, i) == exp_config[i] for i in exp_config])
 
     # TODOLATER: unshared embeddings
     if model.config.vocab_size != len(tokenizer):
@@ -469,7 +504,7 @@ if __name__ == "__main__":
             learning_rate=args.lr,
             warmup_ratio=0.1,
             
-            report_to='wandb' if LOG_WANDB else 'none',
+            report_to='wandb' if args.wandb else 'none',
             
             num_train_epochs=args.epochs,
             save_steps=500,

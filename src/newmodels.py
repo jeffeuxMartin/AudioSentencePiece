@@ -590,25 +590,33 @@ if """old""":
                     pretrained_dict.pop(key_src)
                 else:
                     # OK
+                    # verbose('Matched!')
                     pass
             else:
                 # 舊的有新的沒有
                 verbose(f"{key_src} missing in new model! {val_src.shape}")
                 pretrained_dict.pop(key_src)
         # 舊的沒有新的有，應該會被忽略！
+        model.load_state_dict(pretrained_dict)
         return model
 
     def advanced_load_pretrained(
         checkpoint_name, 
         model_class, 
         config_class, 
-        verbose=print,
+        verbose=(lambda *a: None),  # verbose=print,
         **new_config_options,
     ):
+        """
+        config_class = AutoConfig
+        because with a pretrained, with an AutoConfig
+        """
         newconfig = config_class.from_pretrained(
             checkpoint_name, 
             **new_config_options)
         newconfig.update(new_config_options)  # FIXME: redundant???
+            # No! 如果有會蓋，但新的不會加，要 update
+            # Yes? 其實可以只用後面這步
 
         pretrained_model = model_class.from_pretrained(checkpoint_name)
         model = model_class(config=newconfig)
@@ -875,6 +883,13 @@ class SentBartEncoder(BartEncoder):
     def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
         super().__init__(config, embed_tokens)
         embed_dim = config.d_model
+        self.collapse_n = getattr(config, "collapse_n", 0)
+        self.config.collapse_n = self.collapse_n
+        if self.collapse_n == -1:
+            self.skip_cif = True
+        else:
+            self.skip_cif = False
+        
         self.post_initialization(embed_dim, word_extractor=cif_function)
         
     def post_initialization(self, embed_dim, word_extractor=cif_function):
@@ -914,13 +929,17 @@ class SentBartEncoder(BartEncoder):
         )
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        (hidden_states, out_attention_mask,  
-                      # out_attention_mask := (
-                      #     encoder_output_attention_mask)
-         _, _) = self.sent_retriever(
-             encoder_outputs.last_hidden_state,
-             word_length_tensor=word_length_tensor,
-             padding_mask=1 - attention_mask)
+        if self.skip_cif:
+            hidden_states = encoder_outputs.last_hidden_state
+            out_attention_mask = attention_mask
+        else:
+            (hidden_states, out_attention_mask,  
+                          # out_attention_mask := (
+                          #     encoder_output_attention_mask)
+            _, _) = self.sent_retriever(
+                encoder_outputs.last_hidden_state,
+                word_length_tensor=word_length_tensor,
+                padding_mask=1 - attention_mask)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if not return_dict:
