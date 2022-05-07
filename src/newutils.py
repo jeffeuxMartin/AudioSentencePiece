@@ -91,5 +91,7 @@ def get_args():
             + (" (lower)" if args.lower else " (normalcase)")
             + (" (fix_encoder)" if args.fix_encoder else "")
             + (" (orignalTfm)" if args.original else "")
+            + (" (autoencoder)" if args.autoencoder else "")
+            + (f" weight_len = {args.weight_len}" if args.weight_len is not None else "")
         )
     return args
