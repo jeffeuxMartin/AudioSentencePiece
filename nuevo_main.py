@@ -27,8 +27,8 @@ pathlib.Path(PRETRAINED_PREFIX / "hf_toks"
     ).mkdir(0o755, parents=True, exist_ok=True)    
 
 import os
-# os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May07"
-os.environ['WANDB_PROJECT'] = "HFDebug"
+os.environ['WANDB_PROJECT'] = "HuggingFaceSentASR_May08"
+# os.environ['WANDB_PROJECT'] = "HFDebug"
 
 import sys
 from dataclasses import dataclass
