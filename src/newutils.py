@@ -69,6 +69,7 @@ def get_args():
         action='store_false', dest='lower')
     parser.set_defaults(lower=True)
 
+    parser.add_argument('--fix_encoder', action='store_true')
     parser.add_argument('--original', action='store_true')
 
     args = parser.parse_args()
@@ -86,5 +87,7 @@ def get_args():
             f"lr = {args.lr}, bsz = {args.batch_size}, {args.epochs} epochs"
             + (" (coll)" if args.coll else " (orig)")
             + (" (lower)" if args.lower else " (normalcase)")
+            + (" (fix_encoder)" if args.fix_encoder else "")
+            + (" (orignalTfm)" if args.original else "")
         )
     return args

@@ -292,20 +292,34 @@ def DataSetCollectorGeneral(
 
 def Data_collate_fn(unit_tokenizer, text_tokenizer):
     # done: combine & 應該要都可以處理，沒 label 或 length
+    def prepend_append(tok):
+        def f(s): return f"{tok.bos_token} {s} {tok.eos_token}"
+        return f 
+    unit_tokenizer.prepend_append = (prepend_append(unit_tokenizer) 
+        if unit_tokenizer(['']).get("input_ids", None) == [[]] else 
+        lambda x: x)
+    text_tokenizer.prepend_append = (prepend_append(text_tokenizer) 
+        if text_tokenizer(['']).get("input_ids", None) == [[]] else 
+        lambda x: x)
+
     def collate_fn(batch):
         input_ids, labels, wordlens = list(zip(*batch))
         output_dict = dict(
             **unit_tokenizer(
-                list(input_ids), 
+                list(map(unit_tokenizer.prepend_append, input_ids)), 
                 return_tensors='pt', 
                 padding=True, 
-                truncation=True))
+                truncation=True,
+                max_length=1024,
+            ))
         if labels[0] is not None:
             output_dict["labels"] = text_tokenizer(
-                list(labels), 
+                list(map(text_tokenizer.prepend_append, labels)), 
                 return_tensors='pt', 
                 padding=True, 
-                truncation=True)['input_ids']
+                truncation=True,
+                max_length=1024,
+            )['input_ids']
         if wordlens[0] is not None:
             output_dict["word_length_tensor"] = torch.tensor(
                 np.array(wordlens, dtype=int))
@@ -314,8 +328,9 @@ def Data_collate_fn(unit_tokenizer, text_tokenizer):
    
 def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
     logging.warning(msg)
-    if list(pathlib.Path(saved_path).glob('*')) == []:
-        pathlib.Path(saved_path).rmdir()
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
     if os.path.isdir(saved_path):
         logging.warning('    (Using local cache...)')
         obj = cls.from_pretrained(saved_path)
@@ -357,8 +372,9 @@ def load_cached_config(cls, obj_name, saved_path, config=None, msg="Loading ..."
     return obj
 
 def load_cached_tokenizer(cls, obj_name, saved_path, msg="Loading ..."):
-    if list(pathlib.Path(saved_path).glob('*')) == []:
-        pathlib.Path(saved_path).rmdir()
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
     tokenizer = load_cached(cls, obj_name, saved_path, msg)
     speech_units = ['uni_{:04d}'.format(d) for d in range(500)]  # TODOLATER: modify format
     if speech_units[0] not in tokenizer.get_vocab():  
@@ -426,9 +442,10 @@ if __name__ == "__main__":
     args = get_args()
 
     tokenizer = load_cached_tokenizer(
-        cls=BartTokenizer,
-        obj_name='facebook/bart-base',
-        saved_path=PRETRAINED_PREFIX / "hf_toks",
+        cls=AutoTokenizer,
+        # obj_name='facebook/bart-base',
+        obj_name='facebook/s2t-wav2vec2-large-en-de',
+        saved_path=PRETRAINED_PREFIX / "hf_toks" / "endeunit",
         msg="Loading ...")
 
     collate_fn = Data_collate_fn(
@@ -441,7 +458,13 @@ if __name__ == "__main__":
             'original_units': dict(
                 subdir='collunits' if args.coll else 'symbolunits',
                 ext='collunit' if args.coll else 'symbolunit',
-            )
+            ),
+            'texts': dict(
+                subdir='texts',
+                # subdir='collunits' if args.coll else 'symbolunits',
+                ext='txt',
+                # ext='collunit' if args.coll else 'symbolunit',
+            ),
         }
     )
     dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean', lower=args.lower,
@@ -449,7 +472,13 @@ if __name__ == "__main__":
             'original_units': dict(
                 subdir='collunits' if args.coll else 'symbolunits',
                 ext='collunit' if args.coll else 'symbolunit',
-            )
+            ),
+            'texts': dict(
+                subdir='texts',
+                # subdir='collunits' if args.coll else 'symbolunits',
+                ext='txt',
+                # ext='collunit' if args.coll else 'symbolunit',
+            ),
         }
     )
     # test_dataset       = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='test-clean', lower=args.lower)
@@ -471,7 +500,8 @@ if __name__ == "__main__":
     exp_config = dict(collapse_n=-1 if args.original else 0)
     model = load_cached_config(
         SentBartForConditionalGeneration,
-        "voidful/asr_hubert_cluster_bart_base",
+        # "voidful/asr_hubert_cluster_bart_base",
+        "facebook/bart-base",
         saved_path=PRETRAINED_PREFIX / "hf_pretrains" / "default",
         config=exp_config
     )
@@ -482,6 +512,8 @@ if __name__ == "__main__":
         model.resize_token_embeddings(len(tokenizer))
     # CHECK XXX: resize embedding or config 正確的 embedding 數從頭？
 
+    if args.fix_encoder:
+        model.fix_encoder_()
     trainer = AugSeq2SeqTrainer(
         model=model,
         args=Seq2SeqTrainingArguments(

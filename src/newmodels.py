@@ -1181,6 +1181,10 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )
 
+        # print(self.model.encoder.layers[5].fc1.weight[0][:6] * 100)
+        # print(self.model.encoder.alpha_predictor.weight[0][:6] * 100)
+        # print(self.model.decoder.layers[0].fc1.weight[0][:6] * 100)
+        
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
