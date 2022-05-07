@@ -436,13 +436,13 @@ if __name__ == "__main__":
             
             do_train=True,
             logging_steps=5,
-            train_batch_size=args.batch_size,
+            per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
             eval_steps=args.eval_steps,
             evaluation_strategy="steps",
             eval_accumulation_steps=25,
-            eval_batch_size=int(args.batch_size * 2 / 3),
+            per_device_eval_batch_size=int(args.batch_size * 2 / 3),
             predict_with_generate=True,
             generation_max_length=512,
             
