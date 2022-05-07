@@ -56,8 +56,10 @@ def get_args():
     parser.add_argument("--eval_steps", type=int, default=500)
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--vram", type=float, default=10)
-    breakpoint()
-    parser.add_argument("--notcoll", action='store_false', type=bool, default=True)
+    parser.add_argument('--coll', action='store_true')
+    parser.add_argument("--notcoll", 
+        action='store_false', dest='coll')
+    parser.set_defaults(coll=True)
     args = parser.parse_args()
 
     batch_scaled_up = max(int(args.vram / 10.), 1)
@@ -72,5 +74,4 @@ def get_args():
             # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
             f"lr = {args.lr}, bsz = {args.batch_size}"
         )
-    args.coll = not args.notcoll
     return args
