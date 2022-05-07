@@ -249,21 +249,35 @@ def DataSetCollectorGeneral(
     )) as f:
         texts = f.read().strip().split('\n')
 
-    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-        split=split, 
-        subdir=dtype2subdir_ext['original_units']['subdir'],
-        ext=dtype2subdir_ext['original_units']['ext'],
-    )) as f:
-        original_units = f.read().strip().split('\n')
-    assert len(texts) == len(original_units)
+    if 'texts' in dtype2subdir_ext:
+        with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+            split=split, 
+            subdir=dtype2subdir_ext['original_units']['subdir'],
+            ext=dtype2subdir_ext['original_units']['ext'],
+        )) as f:
+            original_units = f.read().strip().split('\n')
+        assert len(texts) == len(original_units)
+    else:
+        print("NO "
+              "\033[01;31m"
+              "`{texts}`!"
+              "\033[0m")
+        texts = None
 
-    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-        split=split, 
-        subdir=dtype2subdir_ext['wordlens']['subdir'],
-        ext=dtype2subdir_ext['wordlens']['ext'],
-    )) as f:
-        wordlens = f.read().strip().split('\n')
-    assert len(wordlens) == len(original_units)
+    if 'wordlens' in dtype2subdir_ext:
+        with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+            split=split, 
+            subdir=dtype2subdir_ext.get('wordlens', {}).get('subdir'),
+            ext=dtype2subdir_ext.get('wordlens', {}).get('ext'),
+        )) as f:
+            wordlens = f.read().strip().split('\n')
+        assert len(wordlens) == len(original_units)
+    else:
+        print("NO "
+              "\033[01;31m"
+              "`{wordlens}`!"
+              "\033[0m")
+        wordlens = None
 
     mydataset = MyUnitDataset(original_units, texts, wordlens)
 
@@ -390,8 +404,8 @@ if __name__ == "__main__":
     dummy_dataset      = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
     dummy_traindataset = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy')
     dummy_devdataset   = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dummy',
-        dtype2subdir_ext={
-            'texts': dict(
+        dtype2subdir_ext.get({
+            'texts', {}).get(dic),
                 subdir='texts',
                 ext='txt',
             ),
