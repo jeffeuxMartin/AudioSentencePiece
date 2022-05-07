@@ -231,8 +231,8 @@ def DataSetCollectorGeneral(
             ext='txt',
         ),
         'original_units': dict(
-            subdir='symbolunits',
-            ext='symbolunit',
+            subdir='collunits',
+            ext='collunit',
         ),
         'wordlens': dict(
             subdir='lengths',
@@ -410,8 +410,8 @@ if __name__ == "__main__":
     #             ext='txt',
     #         ),
     #         'original_units': dict(
-    #             subdir='symbolunits',
-    #             ext='symbolunit',
+    #             subdir='collunits',
+    #             ext='collunit',
     #         ),
     #     }
     # )
