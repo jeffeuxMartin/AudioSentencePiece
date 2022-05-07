@@ -436,8 +436,6 @@ if __name__ == "__main__":
     #     }
     # )
 
-    print(train_dataset[0:1])
-    print(f"{args.coll = }")
     model = load_cached(
         BartForConditionalGeneration,
         "voidful/asr_hubert_cluster_bart_base",
