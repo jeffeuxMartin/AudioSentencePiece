@@ -947,10 +947,11 @@ class SentBartEncoder(BartEncoder):
         alpha_values = self.alpha_predictor(encoder__last_hidden_state)
         alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
         if word_length_tensor is None:
-            print("No given! self predict")
+            # print("No given! self predict")
             word_length_tensor = alpha_values.sum(-1).long()
         else:
-            print("Wordlen given")
+            # print("Wordlen given")
+            pass
 
         encoder__word_representations_CIF = (
             self.word_extractor(

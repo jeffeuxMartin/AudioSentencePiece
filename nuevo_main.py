@@ -258,10 +258,10 @@ def DataSetCollectorGeneral(
             original_units = f.read().strip().split('\n')
         assert len(texts) == len(original_units)
     else:
-        print("NO "
-              "\033[01;31m"
-              "`{texts}`!"
-              "\033[0m")
+        # print("NO "
+        #       "\033[01;31m"
+        #       "`{texts}`!"
+        #       "\033[0m")
         texts = None
 
     if 'wordlens' in dtype2subdir_ext:
@@ -273,10 +273,10 @@ def DataSetCollectorGeneral(
             wordlens = f.read().strip().split('\n')
         assert len(wordlens) == len(original_units)
     else:
-        print("NO "
-              "\033[01;31m"
-              "`{wordlens}`!"
-              "\033[0m")
+        # print("NO "
+        #       "\033[01;31m"
+        #       "`{wordlens}`!"
+        #       "\033[0m")
         wordlens = None
 
     mydataset = MyUnitDataset(original_units, texts, wordlens)
