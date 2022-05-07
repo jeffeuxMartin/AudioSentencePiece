@@ -84,7 +84,7 @@ def get_args():
         args.run_name = (
             # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
             f"lr = {args.lr}, bsz = {args.batch_size}, {args.epochs} epochs"
-            + " (coll)" if args.coll else " (orig)"
-            + " (lower)" if args.lower else " (normalcase)"
+            + (" (coll)" if args.coll else " (orig)")
+            + (" (lower)" if args.lower else " (normalcase)")
         )
     return args
