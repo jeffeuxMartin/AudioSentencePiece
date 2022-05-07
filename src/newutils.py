@@ -72,6 +72,7 @@ def get_args():
 
     parser.add_argument('--fix_encoder', action='store_true')
     parser.add_argument('--original', action='store_true')
+    parser.add_argument('--autoencoder', action='store_true')
 
     args = parser.parse_args()
 
