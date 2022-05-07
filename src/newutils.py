@@ -57,6 +57,7 @@ def get_args():
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--vram", type=float, default=10)
 
+    parser.add_argument("--weight_len", type=float, default=None)
     parser.add_argument("--notcoll", 
         action='store_false', dest='coll')
     parser.set_defaults(coll=True)
@@ -69,7 +70,9 @@ def get_args():
         action='store_false', dest='lower')
     parser.set_defaults(lower=True)
 
+    parser.add_argument('--fix_encoder', action='store_true')
     parser.add_argument('--original', action='store_true')
+    parser.add_argument('--autoencoder', action='store_true')
 
     args = parser.parse_args()
 
@@ -80,11 +83,18 @@ def get_args():
     #         f"Batch size resized to {args.batch_size:3d}..."
     #     )
 
+    default_run_name = (
+        # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
+        f"lr = {args.lr}, bsz = {args.batch_size}, {args.epochs} epochs"
+        + (" (coll)" if args.coll else " (orig)")
+        + (" (lower)" if args.lower else " (normalcase)")
+        + (" (fix_encoder)" if args.fix_encoder else "")
+        + (" (orignalTfm)" if args.original else "")
+        + (" (autoencoder)" if args.autoencoder else "")
+        + (f" weight_len = {args.weight_len}" if args.weight_len is not None else "")
+    )
     if args.run_name is None:
-        args.run_name = (
-            # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
-            f"lr = {args.lr}, bsz = {args.batch_size}, {args.epochs} epochs"
-            + (" (coll)" if args.coll else " (orig)")
-            + (" (lower)" if args.lower else " (normalcase)")
-        )
+        args.run_name = default_run_name
+    else:
+        args.run_name = args.run_name + " " + default_run_name
     return args
