@@ -13,6 +13,7 @@ from torch import nn
 from torch import Tensor
 from torch import FloatTensor
 from torch import LongTensor
+from torch.nn.modules.loss import L1Loss
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.nn import CrossEntropyLoss, MSELoss
@@ -51,6 +52,8 @@ from dataclasses import dataclass
 class AugBaseModelOutput(BaseModelOutput):
     last_hidden_state: torch.FloatTensor = None
     out_attention_mask: Optional[torch.FloatTensor] = None
+    length_loss: Optional[Tuple[torch.FloatTensor]] = None
+    pred_word_lengths: Optional[torch.LongTensor] = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -63,6 +66,8 @@ class AugSeq2SeqModelOutput(Seq2SeqModelOutput):
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
     encoder_last_hidden_state: Optional[torch.FloatTensor] = None
     encoder_last_hidden_out_attention_mask: Optional[torch.FloatTensor] = None
+    encoder_length_loss: Optional[Tuple[torch.FloatTensor]] = None
+    encoder_pred_word_lengths: Optional[torch.LongTensor] = None
     encoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -76,8 +81,12 @@ class AugSeq2SeqLMOutput(Seq2SeqLMOutput):
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
     encoder_last_hidden_state: Optional[torch.FloatTensor] = None
     encoder_last_hidden_out_attention_mask: Optional[torch.FloatTensor] = None
+    encoder_length_loss: Optional[Tuple[torch.FloatTensor]] = None
+    encoder_pred_word_lengths: Optional[torch.LongTensor] = None
     encoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
+    masked_lm_loss: Optional[torch.FloatTensor] = None
+    real_length_loss: Optional[torch.FloatTensor] = None
 # endregion    === aug_dataclasses ===     NOIGERDNE #
 
 if """old""":
@@ -932,11 +941,16 @@ class SentBartEncoder(BartEncoder):
         if self.skip_cif:
             hidden_states = encoder_outputs.last_hidden_state
             out_attention_mask = attention_mask
+            length_loss = (
+                torch.zeros(len(hidden_states)).float(),
+                torch.zeros(len(hidden_states)).long(),)
+            pred_word_lengths = None
         else:
-            (hidden_states, out_attention_mask,  
+            (hidden_states, out_attention_mask, length_loss,
                           # out_attention_mask := (
                           #     encoder_output_attention_mask)
-            _, _) = self.sent_retriever(
+             pred_word_lengths,
+             _, _) = self.sent_retriever(
                 encoder_outputs.last_hidden_state,
                 word_length_tensor=word_length_tensor,
                 padding_mask=1 - attention_mask)
@@ -947,13 +961,19 @@ class SentBartEncoder(BartEncoder):
                 hidden_states, 
                 out_attention_mask, 
                 encoder_outputs.hidden_states,
+                length_loss,
+                pred_word_lengths,
                 encoder_outputs.attentions,
+            # ] if v is not None)
             ] if v is not None)
         return AugBaseModelOutput(
             last_hidden_state=hidden_states, 
             out_attention_mask=out_attention_mask, 
+            length_loss=length_loss,
+            pred_word_lengths=pred_word_lengths,
             hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
+            # # attentions=encoder_outputs.attentions,
+            # attentions=encoder_outputs.attentions,
         )
 
     def sent_retriever(self, 
@@ -965,11 +985,13 @@ class SentBartEncoder(BartEncoder):
       ):
         alpha_values = self.alpha_predictor(encoder__last_hidden_state)
         alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
+
         if word_length_tensor is None:
             # print("No given! self predict")
             word_length_tensor = alpha_values.sum(-1).long()
         else:
             # print("Wordlen given")
+            # predicted_word_length_tensor = alpha_values.sum(-1).long()
             pass
 
         encoder__word_representations_CIF = (
@@ -982,14 +1004,20 @@ class SentBartEncoder(BartEncoder):
         )
         # TODO: Keep all CIF
         [encoder_word_representation] = encoder__word_representations_CIF['cif_out']
-        [pred_word_lengths] = encoder__word_representations_CIF['cif_lengths']
+        [pred_word_lengths] = encoder__word_representations_CIF['alpha_sum']
         encoder_word_representation = encoder_word_representation.contiguous()
-        pred_word_lengths = pred_word_lengths.contiguous()
+        # pred_word_lengths = pred_word_lengths.contiguous()
+        # length_loss = 0.
+        length_loss = ((pred_word_lengths, word_length_tensor,)
+            if word_length_tensor is not None else
+            (word_length_tensor, word_length_tensor,))
             # aliased as `encoder_word_representation`
             # FIXME: distributed problem!
             # TODO: add other CIF ouptuts!
+        # length_loss = length_loss.contiguous()
 
         encoder_output_attention_mask = (
+            # mask_generator(word_length_tensor) 
             mask_generator(word_length_tensor) 
             if word_length_tensor is not None else
             mask_generator(pred_word_lengths))
@@ -998,7 +1026,10 @@ class SentBartEncoder(BartEncoder):
         return (
             encoder_word_representation, 
             encoder_output_attention_mask, 
+            length_loss,
+            pred_word_lengths,
             encoder__word_representations_CIF if return_all else None,
+            # encoder__last_hidden_state if return_original else None,
             encoder__last_hidden_state if return_original else None,
         )
 
@@ -1077,8 +1108,11 @@ class SentBart(BartModel):
             encoder_outputs = AugBaseModelOutput(
                 last_hidden_state=encoder_outputs[0],
                 out_attention_mask=encoder_outputs[1],
-                hidden_states=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
-                attentions=encoder_outputs[3] if len(encoder_outputs) > 3 else None,
+                length_loss=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+                pred_word_lengths=encoder_outputs[3] if len(encoder_outputs) > 3 else None,
+                hidden_states=encoder_outputs[4] if len(encoder_outputs) > 4 else None,
+                # attentions=encoder_outputs[5] if len(encoder_outputs) > 5 else None,
+                    attentions=encoder_outputs[5] if len(encoder_outputs) > 5 else None,
             )
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -1111,8 +1145,11 @@ class SentBart(BartModel):
             cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_last_hidden_out_attention_mask=encoder_outputs.out_attention_mask,
+            encoder_length_loss=encoder_outputs.length_loss,
+            encoder_pred_word_lengths=encoder_outputs.pred_word_lengths,
             encoder_hidden_states=encoder_outputs.hidden_states,
-            encoder_attentions=encoder_outputs.attentions,
+            # # encoder_attentions=encoder_outputs.attentions,
+            # encoder_attentions=encoder_outputs.attentions,
         )
 
     # region CHANGED >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1131,6 +1168,9 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             config.d_model, 
             self.model.shared.num_embeddings, 
             bias=False)
+
+        self.weight_len = getattr(config, "weight_len", None)
+        self.config.weight_len = self.weight_len
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1212,14 +1252,37 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             # region CHANGED >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             loss_fct = CrossEntropyLoss()
             masked_lm_loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
+            # loss_fct = nn.CTCLoss(1)
+            # masked_lm_loss = loss_fct(
+            #     lm_logits, # $$$
+            #     labels,
+            #     attention_mask.sum(-1),
+            #     (labels != 1).sum(-1))
+            # breakpoint()
             # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+        real_length_loss = None
+        if word_length_tensor is not None and self.weight_len is not None:
+            # region CHANGED >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            loss_fct = nn.L1Loss()
+            # real_length_loss = torch.linalg.vector_norm(outputs.encoder_length_loss.float(), ord=1)
+            real_length_loss = loss_fct(*(outputs.encoder_length_loss))
+            # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        loss = ((masked_lm_loss if masked_lm_loss is not None else 0.)
+              + ((self.weight_len if self.weight_len is not None else 0.
+                 ) * (real_length_loss if real_length_loss is not None else 0.))
+        ) if ((masked_lm_loss is not None) or (real_length_loss is not None)) else None
+
         if not return_dict:
-            output = (lm_logits,) + outputs[1:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+            output = (lm_logits,) + outputs[1:] + (masked_lm_loss, real_length_loss,)
+            return (
+                ((loss,) + output) 
+                if loss is not None else 
+                output)
 
         return AugSeq2SeqLMOutput(
-            loss=masked_lm_loss,
+            loss=loss,
             logits=lm_logits,
             past_key_values=outputs.past_key_values,
             decoder_hidden_states=outputs.decoder_hidden_states,
@@ -1227,8 +1290,12 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             cross_attentions=outputs.cross_attentions,
             encoder_last_hidden_state=outputs.encoder_last_hidden_state,
             encoder_last_hidden_out_attention_mask=outputs.encoder_last_hidden_out_attention_mask,
+            encoder_length_loss=outputs.encoder_length_loss,
+            encoder_pred_word_lengths=outputs.encoder_pred_word_lengths,
             encoder_hidden_states=outputs.encoder_hidden_states,
             encoder_attentions=outputs.encoder_attentions,
+            masked_lm_loss=masked_lm_loss,
+            real_length_loss=real_length_loss,
         )
 
     def prepare_inputs_for_generation(

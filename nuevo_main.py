@@ -456,13 +456,17 @@ if __name__ == "__main__":
     train_dataset        = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='train-clean-100', lower=args.lower,
         dtype2subdir_ext={
             'original_units': dict(
-                subdir='collunits' if args.coll else 'symbolunits',
-                ext='collunit' if args.coll else 'symbolunit',
+                # subdir='collunits' if args.coll else 'symbolunits',
+                subdir='symbolunits',
+                # ext='collunit' if args.coll else 'symbolunit',
+                ext='symbolunit',
             ),
             'texts': dict(
-                subdir='texts',
+                # subdir='texts',
+                subdir='collunits',
                 # subdir='collunits' if args.coll else 'symbolunits',
-                ext='txt',
+                # ext='txt',
+                ext='collunit',
                 # ext='collunit' if args.coll else 'symbolunit',
             ),
         }
@@ -470,13 +474,17 @@ if __name__ == "__main__":
     dev_dataset          = DataSetCollectorGeneral(LIBRISPEECH_UNIT_PATH, split='dev-clean', lower=args.lower,
         dtype2subdir_ext={
             'original_units': dict(
-                subdir='collunits' if args.coll else 'symbolunits',
-                ext='collunit' if args.coll else 'symbolunit',
+                # subdir='collunits' if args.coll else 'symbolunits',
+                subdir='symbolunits',
+                # ext='collunit' if args.coll else 'symbolunit',
+                ext='symbolunit',
             ),
             'texts': dict(
-                subdir='texts',
+                # subdir='texts',
+                subdir='collunits',
                 # subdir='collunits' if args.coll else 'symbolunits',
-                ext='txt',
+                # ext='txt',
+                ext='collunit',
                 # ext='collunit' if args.coll else 'symbolunit',
             ),
         }
@@ -497,7 +505,11 @@ if __name__ == "__main__":
     #     }
     # )
 
-    exp_config = dict(collapse_n=-1 if args.original else 0)
+    exp_config = dict(
+        collapse_n=-1 if args.original else 0,
+    )
+    if args.weight_len is not None:
+        exp_config['weight_len'] = args.weight_len
     model = load_cached_config(
         SentBartForConditionalGeneration,
         # "voidful/asr_hubert_cluster_bart_base",

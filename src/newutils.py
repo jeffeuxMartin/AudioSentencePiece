@@ -57,6 +57,7 @@ def get_args():
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--vram", type=float, default=10)
 
+    parser.add_argument("--weight_len", type=float, default=None)
     parser.add_argument("--notcoll", 
         action='store_false', dest='coll')
     parser.set_defaults(coll=True)
