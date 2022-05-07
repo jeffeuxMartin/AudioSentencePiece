@@ -59,14 +59,15 @@ def get_args():
     args = parser.parse_args()
 
     batch_scaled_up = max(int(args.vram / 10.), 1)
-    args.batch_size *= batch_scaled_up
-    if batch_scaled_up > 1:
-        logging.warning(
-            f"Batch size resized to {args.batch_size:3d}..."
-        )
+    # args.batch_size *= batch_scaled_up
+    # if batch_scaled_up > 1:
+    #     logging.warning(
+    #         f"Batch size resized to {args.batch_size:3d}..."
+    #     )
 
     if args.run_name is None:
         args.run_name = (
-            f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
+            # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
+            f"lr = {args.lr}, bsz = {args.batch_size}"
         )    
     return args

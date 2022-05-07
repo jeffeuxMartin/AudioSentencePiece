@@ -442,7 +442,7 @@ if __name__ == "__main__":
             eval_steps=args.eval_steps,
             evaluation_strategy="steps",
             eval_accumulation_steps=25,
-            eval_batch_size=args.batch_size,
+            eval_batch_size=int(args.batch_size * 2 / 3),
             predict_with_generate=True,
             generation_max_length=512,
             
