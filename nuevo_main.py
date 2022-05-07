@@ -486,7 +486,7 @@ if __name__ == "__main__":
         
         compute_metrics=compute_metrics_WER(tokenizer,
             metric_batch=20,
-            verbose_batch=20,
+            verbose_batch=50,
         ),
     )
 
