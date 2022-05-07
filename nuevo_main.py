@@ -61,10 +61,10 @@ from transformers.utils import is_apex_available
 from transformers.trainer_callback import TrainerState
 from datasets import load_metric
 if is_sagemaker_mp_enabled():
-    import smdistributed.modelparallel.torch as smp
+    import smdistributed.modelparallel.torch as smp  # noqa
     from transformers.trainer_pt_utils import smp_forward_backward
 if is_apex_available():
-    from apex import amp
+    from apex import amp  # noqa
 from transformers.trainer_pt_utils import nested_detach
 
 
@@ -161,8 +161,10 @@ class AugTrainer(Trainer):
 
         with self.autocast_smart_context_manager():
             loss, other_outputs = self.compute_loss(model, inputs, return_outputs=True)
-            self.state.masked_lm_loss = other_outputs['masked_lm_loss'].detach().item()
-            self.state.real_length_loss = other_outputs['real_length_loss'].detach().item()
+            if 'masked_lm_loss' in other_outputs:
+                self.state.masked_lm_loss = other_outputs.get('masked_lm_loss').detach().item()
+            if 'real_length_loss' in other_outputs:
+                self.state.real_length_loss = other_outputs.get('real_length_loss').detach().item()
 
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
@@ -209,7 +211,7 @@ class AugTrainer(Trainer):
 
         with torch.no_grad():
             if is_sagemaker_mp_enabled():  # nottodo~~
-                raw_outputs = smp_forward_only(model, inputs)
+                raw_outputs = smp_forward_only(model, inputs)  # noqa
                 if has_labels:
                     if isinstance(raw_outputs, dict):
                         loss_mb = raw_outputs["loss"]
@@ -219,14 +221,14 @@ class AugTrainer(Trainer):
                         logits_mb = raw_outputs[1:]
 
                     loss = loss_mb.reduce_mean().detach().cpu()
-                    logits = smp_nested_concat(logits_mb)
+                    logits = smp_nested_concat(logits_mb)  # noqa
                 else:
                     loss = None
                     if isinstance(raw_outputs, dict):
                         logits_mb = tuple(v for k, v in raw_outputs.items() if k not in ignore_keys)
                     else:
                         logits_mb = raw_outputs
-                    logits = smp_nested_concat(logits_mb)
+                    logits = smp_nested_concat(logits_mb)  # noqa
             else:
                 if has_labels:
                     with self.autocast_smart_context_manager():
