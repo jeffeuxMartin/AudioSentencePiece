@@ -187,7 +187,6 @@ def get_args():
         
     # @@@ exp setups!
     parser.add_argument("--run_name", type=str, default=None)
-    parser.add_argument("-e", "--epochs", type=int, default=10)
     parser.add_argument("--weight_len", type=float, default=None)
     parser.add_argument("--notcoll", action='store_false', dest='coll'); parser.set_defaults(coll=True)
     parser.add_argument('--autoencoder', action='store_true')
@@ -197,14 +196,15 @@ def get_args():
     parser.add_argument('--scratch', action='store_true')
     parser.add_argument("--nolower", action='store_false', dest='lower'); parser.set_defaults(lower=True)
     # !!! better fixed with care !!!!!!!!!!!!!!!!!!!1
+    parser.add_argument("-e", "--epochs", type=int, default=10)
     parser.add_argument("-b", "--batch_size", type=int, default=6)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
         
     # @@@ self-tuned
+    parser.add_argument("-B", "--eval_batch_size", type=int, default=None)
     parser.add_argument("--eval_steps", type=int, default=500)
     parser.add_argument("--nowandb", action='store_false', dest='wandb'); parser.set_defaults(wandb=True)
-    parser.add_argument("-B", "--eval_batch_size", type=int, default=None)
-    parser.add_argument("--logging_steps", type=int, default=5)
+    parser.add_argument("--logging_steps", type=int, default=10)
     parser.add_argument("--save_total_limit", type=int, default=3)
     # ~~~ not important
     parser.add_argument("--eval_accumulation_steps", type=int, default=25)

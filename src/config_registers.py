@@ -37,55 +37,58 @@ IntUnits = TrainingDataType("units", "unit")
 
 TextData = TrainingDataType("texts", "txt")
 SubwordData = TrainingDataType("subwords", "subword")
+DeSubwordData = TrainingDataType("desubwords", "desubword")
 TranslationData = TrainingDataType("translation", "de")
 
-LengthData = TrainingDataType("lengths", "len")
+EnLengthData = TrainingDataType("lengths", "len")
+EnDeLengthData = TrainingDataType("endelengths", "endelength")
+WordLengthData = TrainingDataType("wordlengths", "wordlen")
 PathData = TrainingDataType("paths", "path")
 
 
-autoencoder_config = TaskConfig(
+autoencoder_config = lambda coll: TaskConfig(
     # trainer_class=AugTrainer,
     trainer_class=Trainer,
     training_arg_class=TrainingArguments,
     metric_func=compute_metrics_WER_logits,
     data_structure_def=dict(
-        src=CollUnits,
-        tgt=CollUnits,
-        hint=LengthData,
+        src=(CollUnits if coll else FullUnits),
+        tgt=(CollUnits if coll else FullUnits),
+        hint=EnDeLengthData,
     ),
     seq2seq=False,
 )
 
-asr_config = TaskConfig(
+asr_config = lambda coll: TaskConfig(
     # trainer_class=AugSeq2SeqTrainer,
     trainer_class=Seq2SeqTrainer,
     training_arg_class=Seq2SeqTrainingArguments,
     # metric_func=compute_metrics_WER,
     metric_func=compute_metrics_WER_HF,
     data_structure_def=dict(
-        src=CollUnits,
+        src=(CollUnits if coll else FullUnits),
         tgt=TextData,
-        hint=LengthData,
+        hint=EnDeLengthData,
     ),
     seq2seq=True,
 )
 
-st_config = TaskConfig(
+st_config = lambda coll: TaskConfig(
     # trainer_class=AugSeq2SeqTrainer,
     trainer_class=Seq2SeqTrainer,
     training_arg_class=Seq2SeqTrainingArguments,
     # metric_func=compute_metrics_BLEU,
     metric_func=compute_metrics_BLEU_HF,
     data_structure_def=dict(
-        src=CollUnits,
+        src=(CollUnits if coll else FullUnits),
         tgt=TranslationData,
-        hint=LengthData,
+        hint=EnDeLengthData,
     ),
     seq2seq=True,
 )
 
-TASK_CONFIG_DICT = {
-    "AE": autoencoder_config,
-    "ASR": asr_config,
-    "ST": st_config,
+TASK_CONFIG_DICT = lambda coll: {
+    "AE": autoencoder_config(coll),
+    "ASR": asr_config(coll),
+    "ST": st_config(coll),
 }

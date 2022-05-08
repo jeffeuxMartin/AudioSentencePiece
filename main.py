@@ -44,7 +44,7 @@ logging.warning('== import DONE ==')
 def main():
     args = get_args()
     os.environ['WANDB_PROJECT'] = args.proj_name
-    task_config = TASK_CONFIG_DICT[args.task]
+    task_config = TASK_CONFIG_DICT(args.coll)[args.task]
 
     # === collect dataset for setup === #
     def LIBRISPEECH_UNIT_ASR_SPLIT(split, lower=args.lower):
