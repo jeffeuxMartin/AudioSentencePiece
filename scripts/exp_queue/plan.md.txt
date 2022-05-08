@@ -26,9 +26,9 @@
 * [x] 4. collunit CIF ST
 * [ ]         // 6. fullunit CIF (load AE init) ST
 * [ ] 7. fullunit CIF (load AE fix) ST
-* [ ] 8. fullunit CIF ST
+* [v] 8. fullunit CIF ST
 * [x] 4. collunit noCIF ST
-* [ ] 8. fullunit noCIF ST
+* [v] 8. fullunit noCIF ST
 * [ ]             // 2. collunit others2s (load AE init) ST
 * [ ]     3. collunit others2s (load AE fix) ST
 * [ ]     4. collunit others2s ST
