@@ -116,6 +116,7 @@ class SentBartEncoder(BartEncoder):
         attention_mask: Optional[torch.Tensor] = None,
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         word_length_tensor: Optional[torch.LongTensor] = None,
+        alpha_values: Optional[torch.FloatTensor] = None,
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -149,6 +150,12 @@ class SentBartEncoder(BartEncoder):
                 torch.zeros(len(hidden_states)).long(),)
             pred_word_lengths = None
         else:
+            if self.collapse_n == 1:    # 1 for all
+                word_length_tensor = torch.ones_like(word_length_tensor)
+            elif self.collapse_n == 2:  # all for all
+                word_length_tensor = (attention_mask.sum(-1).long()
+                                      .to(word_length_tensor.device))
+                                        # else: N for all
             (hidden_states, out_attention_mask, length_loss,
                           # out_attention_mask := (
                           #     encoder_output_attention_mask)
@@ -156,6 +163,7 @@ class SentBartEncoder(BartEncoder):
              _, _) = self.sent_retriever(
                 encoder_outputs.last_hidden_state,
                 word_length_tensor=word_length_tensor,
+                alpha_values=alpha_values,
                 padding_mask=1 - attention_mask)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -182,12 +190,14 @@ class SentBartEncoder(BartEncoder):
     def sent_retriever(self, 
         encoder__last_hidden_state, 
         word_length_tensor=None,
+        alpha_values=None,
         padding_mask=None,
         return_all=False,
         return_original=False,
       ):
-        alpha_values = self.alpha_predictor(encoder__last_hidden_state)
-        alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
+        if alpha_values is None:
+            alpha_values = self.alpha_predictor(encoder__last_hidden_state)
+            alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
 
         if word_length_tensor is None:
             # print("No given! self predict")
@@ -255,6 +265,7 @@ class SentBart(BartModel):
         attention_mask: Optional[torch.Tensor] = None,
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         word_length_tensor: Optional[torch.LongTensor] = None,
+        alpha_values: Optional[torch.FloatTensor] = None,
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -298,6 +309,7 @@ class SentBart(BartModel):
                 attention_mask=attention_mask,
                 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
                 word_length_tensor=word_length_tensor,
+                alpha_values=alpha_values,
                 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
@@ -389,6 +401,7 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
         attention_mask: Optional[torch.Tensor] = None,
         # region CHANGED >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         word_length_tensor: Optional[torch.LongTensor] = None,
+        alpha_values: Optional[torch.FloatTensor] = None,
         # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -433,6 +446,7 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             attention_mask=attention_mask,
             # region CHANGED >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             word_length_tensor=word_length_tensor,
+            alpha_values=alpha_values,
             # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             decoder_input_ids=decoder_input_ids,
             encoder_outputs=encoder_outputs,
@@ -505,6 +519,7 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
         self,
         decoder_input_ids,
         word_length_tensor=None,
+        alpha_values=None,
         past=None,
         attention_mask=None,
         head_mask=None,
@@ -528,6 +543,7 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
 
         return {
             "word_length_tensor": word_length_tensor,
+            "alpha_values": alpha_values,
             **output_dict,
         }
 
@@ -561,6 +577,12 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             model_kwargs["word_length_tensor"] = word_length_tensor.index_select(0, expanded_return_idx)
         elif "word_length_tensor" in model_kwargs and model_kwargs.get("word_length_tensor") is None:
             model_kwargs.pop("word_length_tensor")
+        # TODO: maybe check model arch?
+        if "alpha_values" in model_kwargs and model_kwargs.get("alpha_values") is not None:
+            alpha_values = model_kwargs["alpha_values"]
+            model_kwargs["alpha_values"] = alpha_values.index_select(0, expanded_return_idx)
+        elif "alpha_values" in model_kwargs and model_kwargs.get("alpha_values") is None:
+            model_kwargs.pop("alpha_values")
         # TODO: maybe check model arch?
 
         if "encoder_outputs" in model_kwargs:

@@ -43,7 +43,7 @@ logging.warning('== import DONE ==')
 
 def main():
     args = get_args()
-    os.environ['WANDB_PROJECT'] = os.proj_name
+    os.environ['WANDB_PROJECT'] = args.proj_name
     task_config = TASK_CONFIG_DICT[args.task]
 
     # === collect dataset for setup === #
@@ -81,9 +81,9 @@ def main():
 
     # === build the model === #
     if args.scratch:
-        SentBartForConditionalGeneration(
-            AutoConfig.from_pretrained(
-                args.pretrained_name, **exp_config))
+        config = AutoConfig.from_pretrained(args.pretrained_name, **exp_config)
+        config.update(exp_config)
+        model = SentBartForConditionalGeneration(config)
     else:
         model = load_cached_config(
             SentBartForConditionalGeneration,
@@ -159,6 +159,19 @@ def main():
     )
 
     trainer = task_config.trainer_class(**trainer_args)
+    
+    if "check data":
+        print()
+        print('Checking Trainloader...')
+        for i in trainer.get_train_dataloader():
+            print(i)
+            break
+        if args.dev_split != 'none':
+            print()
+            print('Checking Evalloader...')
+            for i in trainer.get_eval_dataloader():
+                print(i)
+                break
 
     trainer.train(
         ignore_keys_for_eval=[  # 也可以直接寫進 config!

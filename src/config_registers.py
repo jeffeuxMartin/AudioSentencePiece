@@ -3,14 +3,18 @@ from typing import Callable, Dict, Type, Optional
 from dataclasses import dataclass
 
 from transformers import TrainingArguments
+from transformers import Trainer
 from transformers import Seq2SeqTrainingArguments
+from transformers import Seq2SeqTrainer
 
 from .trainers import AugSeq2SeqTrainer
 from .trainers import AugTrainer
 from .trainers import AugTrainerState
 from .metrics import compute_metrics_WER
 from .metrics import compute_metrics_WER_logits
+from .metrics import compute_metrics_WER_HF
 from .metrics import compute_metrics_BLEU
+from .metrics import compute_metrics_BLEU_HF
 
 
 @dataclass
@@ -40,7 +44,8 @@ PathData = TrainingDataType("paths", "path")
 
 
 autoencoder_config = TaskConfig(
-    trainer_class=AugTrainer,
+    # trainer_class=AugTrainer,
+    trainer_class=Trainer,
     training_arg_class=TrainingArguments,
     metric_func=compute_metrics_WER_logits,
     data_structure_def=dict(
@@ -52,9 +57,11 @@ autoencoder_config = TaskConfig(
 )
 
 asr_config = TaskConfig(
-    trainer_class=AugSeq2SeqTrainer,
+    # trainer_class=AugSeq2SeqTrainer,
+    trainer_class=Seq2SeqTrainer,
     training_arg_class=Seq2SeqTrainingArguments,
-    metric_func=compute_metrics_WER,
+    # metric_func=compute_metrics_WER,
+    metric_func=compute_metrics_WER_HF,
     data_structure_def=dict(
         src=CollUnits,
         tgt=TextData,
@@ -64,9 +71,11 @@ asr_config = TaskConfig(
 )
 
 st_config = TaskConfig(
-    trainer_class=AugSeq2SeqTrainer,
+    # trainer_class=AugSeq2SeqTrainer,
+    trainer_class=Seq2SeqTrainer,
     training_arg_class=Seq2SeqTrainingArguments,
-    metric_func=compute_metrics_BLEU,
+    # metric_func=compute_metrics_BLEU,
+    metric_func=compute_metrics_BLEU_HF,
     data_structure_def=dict(
         src=CollUnits,
         tgt=TranslationData,

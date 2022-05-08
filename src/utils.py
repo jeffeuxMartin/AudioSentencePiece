@@ -174,9 +174,9 @@ def mask_generator(X_len, X=None, max_len=None):
 def get_args():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("task", type=str, default='ASR')
-    parser.add_argument("datapath", type=str, default="data/LibriSpeechUnits")
-    parser.add_argument("proj_name", type=str, default="HuggingFaceSentASR_May08")
+    parser.add_argument("--task", type=str, default='ASR')
+    parser.add_argument("--datapath", type=str, default="data/LibriSpeechUnits")
+    parser.add_argument("--proj_name", type=str, default="HuggingFaceSentASR_May08")
     
     parser.add_argument("--train_split", type=str, default='train-clean-100')
     parser.add_argument("--dev_split", type=str, default='dev-clean')
@@ -187,8 +187,6 @@ def get_args():
         
     # @@@ exp setups!
     parser.add_argument("--run_name", type=str, default=None)
-    parser.add_argument("-b", "--batch_size", type=int, default=6)
-    parser.add_argument("-lr", "--lr", type=float, default=2e-4)
     parser.add_argument("-e", "--epochs", type=int, default=10)
     parser.add_argument("--weight_len", type=float, default=None)
     parser.add_argument("--notcoll", action='store_false', dest='coll'); parser.set_defaults(coll=True)
@@ -198,6 +196,9 @@ def get_args():
     parser.add_argument("--collapse_n", type=int, default=0)
     parser.add_argument('--scratch', action='store_true')
     parser.add_argument("--nolower", action='store_false', dest='lower'); parser.set_defaults(lower=True)
+    # !!! better fixed with care !!!!!!!!!!!!!!!!!!!1
+    parser.add_argument("-b", "--batch_size", type=int, default=6)
+    parser.add_argument("-lr", "--lr", type=float, default=2e-4)
         
     # @@@ self-tuned
     parser.add_argument("--eval_steps", type=int, default=500)
@@ -247,9 +248,9 @@ def get_args():
         + (f" collapse_n = {args.collapse_n}" if args.collapse_n != 0 else "")
     )
     if args.run_name is None:
-        args.run_name = default_run_name
+        args.run_name = "{"f"{args.task}""}" + " " + default_run_name
     else:
-        args.run_name = f"[{args.run_name}]" + " " + default_run_name
+        args.run_name = f"[{args.run_name}] " + default_run_name
         
     # --- notification --- # 
     if args.scratch:
@@ -266,7 +267,7 @@ def get_args():
     + "\033[0m")
 
     print("\033[01;35m" +
-        f"""args = """
+        f"""output_dir = """
     + "\033[0m", end='')
     print("\033[01;36m" +
         f"""`{args.output_dir}`!..."""

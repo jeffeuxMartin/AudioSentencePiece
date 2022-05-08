@@ -43,12 +43,12 @@ def DataSetCollectorGeneral(
   ):
     logging.warning('== Loading data... ==')
     with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-        split=split, **dtype2subdir_ext.src)) as f:
+        split=split, **(vars(dtype2subdir_ext["src"])))) as f:
         src_data = f.read().strip().split('\n')
 
     if 'tgt' in dtype2subdir_ext:
         with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-            split=split, **dtype2subdir_ext.tgt)) as f:
+            split=split, **(vars(dtype2subdir_ext["tgt"])))) as f:
             tgt_data = f.read().strip().split('\n')
         assert len(tgt_data) == len(src_data)
     else:
@@ -56,7 +56,7 @@ def DataSetCollectorGeneral(
 
     if 'hint' in dtype2subdir_ext:
         with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-            split=split, **dtype2subdir_ext.hint)) as f:
+            split=split, **(vars(dtype2subdir_ext["hint"])))) as f:
             hint_data = f.read().strip().split('\n')
         assert len(hint_data) == len(src_data)
     else:

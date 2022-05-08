@@ -51,10 +51,12 @@ class AugTrainer(Trainer):
         if self.state.epoch is not None:
             logs["epoch"] = round(self.state.epoch, 2)
         if getattr(self.state, "masked_lm_loss", None) is not None:
-            logs["masked_lm_loss"] = round(self.state.masked_lm_loss, 2)
+            logs["CE loss"] = round(self.state.masked_lm_loss, 3)
         if getattr(self.state, "real_length_loss", None) is not None:
-            logs["real_length_loss"] = round(self.state.real_length_loss, 2)
+            logs["real_length_loss"] = round(self.state.real_length_loss, 3)
             
+        if "learning_rate" in logs:
+            logs["learning_rate"] = eval("%.3e" % (logs["learning_rate"]))
         output = {
             **logs, 
             **{"step": self.state.global_step},
