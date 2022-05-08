@@ -16,6 +16,7 @@ GPUCount=2
 # ---------------- main ---------------- #
 batchsize=$((18 / $GPUCount))
 cd $WORKDIR
+cd AudioSentencePiece && git pull && cd ..
 mkdir -p $OUTPUTDIR_PREFIX
 hrun \
   -c 8 -m 16 \
