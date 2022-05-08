@@ -7,9 +7,9 @@
 * [ ] 5. fullunit CIF AE
 * [ ]         // 6. fullunit CIF (load AE init) ASR
 * [ ] 7. fullunit CIF (load AE fix) ASR
-* [ ] 8. fullunit CIF ASR
+* [o] 8. fullunit CIF ASR
 * [x] 4. collunit noCIF ASR
-* [ ] 8. fullunit noCIF ASR
+* [o] 8. fullunit noCIF ASR
 * [ ]     1. collunit others2s AE
 * [ ]             // 2. collunit others2s (load AE init) ASR
 * [ ]     3. collunit others2s (load AE fix) ASR
