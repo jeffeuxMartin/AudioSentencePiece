@@ -28,8 +28,8 @@ hrun $SPOT \
   --proj_name HuggingFaceSent \
   --nolower ` # ST ` \
   \
-  --train_split train-clean-100 \
-  --dev_split dev-clean \
+  --train_split train \
+  --dev_split dev \
   ` # exp settings ` ` # --- # ` \
   --scratch \
   ` # --notcoll ` \
