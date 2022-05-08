@@ -1,7 +1,7 @@
 # full unit --> batchsz smaller
-ALLbatch=9
-GPUType=2080Ti    # 9                      
-GPUCount=3
+# ALLbatch=9
+# GPUType=2080Ti    # 9                      
+# GPUCount=3
 #!sh
 # ============== constant ============== #                                     
 WORKDIR=$HOME/AudioWords
