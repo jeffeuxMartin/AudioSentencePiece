@@ -10,8 +10,8 @@ RUNNING=$APROOT/scripts/run_battleship.sh
 
 OUTPUTDIR_PREFIX=exp/hf_ckpts/focused
 GPUType=2080Ti  # 6
-GPUType=3090    # 9
-GPUCount=2
+# GPUType=3090    # 9
+GPUCount=3
 
 # ---------------- main ---------------- #
 batchsize=$((18 / $GPUCount))
