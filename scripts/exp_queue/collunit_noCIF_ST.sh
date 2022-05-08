@@ -1,4 +1,4 @@
-# full unit --> batchsz smaller
+# ALLbatch=18 GPUType=3090 GPUCount=3 zsh ~/AudioWords/AudioSentencePiece/scripts/exp_queue/collunit_noCIF_ST.sh                          # full unit --> batchsz smaller
 # ALLbatch=9
 # GPUType=2080Ti    # 9                      
 # GPUCount=3
@@ -23,16 +23,16 @@ hrun \
   --run_name 'collunit_noCIF_ST' \
   --output_dir "$OUTPUTDIR_PREFIX/$(date +%Y%m%d_%H%M%S)" \
   ` # setups ` ` # ~~~ # ` \
-  --task ASR \
-  --datapath data/LibriSpeechUnits \
+  --task ST \
+  --datapath data/CoVoSTUnits \
   --proj_name HuggingFaceSent \
-  `     # --nolower  # ASR ` \
+  --nolower ` # ST ` \
   \
   --train_split train-clean-100 \
   --dev_split dev-clean \
   ` # exp settings ` ` # --- # ` \
   --scratch \
-  --notcoll \
+  ` # --notcoll ` \
   --original \
   ` # fixed ----------- ` \
   -b $batchsize -B $batchsize \
