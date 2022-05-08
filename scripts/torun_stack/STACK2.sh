@@ -23,7 +23,7 @@ hrun \
   -$(printf -- 'G%.0s' $(seq 1 $GPUCount)) -g $GPUType \
   zsh $RUNNING \
 ` # python3 AudioSentencePiece/main.py ` \
-  --output_dir "$OUTPUTDIR_PREFIX/$(date +%Y%m%d_%H%M%S)"
+  --output_dir "$OUTPUTDIR_PREFIX/$(date +%Y%m%d_%H%M%S)" \
   ` # setups ` ` # ~~~ # ` \
   --task ASR \
   --datapath data/LibriSpeechUnits \
