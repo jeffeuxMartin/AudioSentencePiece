@@ -77,6 +77,8 @@ def main():
     exp_config = dict(
         collapse_n=(-1 if args.original else args.collapse_n),  # default = 0
         **(dict(weight_len=args.weight_len) if args.weight_len is not None else {}),
+        **(dict(use_self=True) if args.use_self else dict(use_self=False)),
+        **(dict(minimize_len=True) if args.minimize_len else dict(minimize_len=False)),
     )
 
     # === build the model === #

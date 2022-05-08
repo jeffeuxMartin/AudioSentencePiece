@@ -1,42 +1,45 @@
+# full unit --> batchsz smaller
+ALLbatch=9
+GPUType=2080Ti    # 9                      
+GPUCount=3
 #!sh
-# ============== constant ============== #
+# ============== constant ============== #                                     
 WORKDIR=$HOME/AudioWords
 APROOT=$WORKDIR/AudioSentencePiece
 RUNNING=$APROOT/scripts/run_battleship.sh
 
 OUTPUTDIR_PREFIX=exp/hf_ckpts/focused
-GPUType=2080Ti  # 6
-# GPUType=3090    # 9
-GPUCount=3
 
 # ---------------- main ---------------- #
-batchsize=$((18 / $GPUCount))
+batchsize=$(($ALLbatch / $GPUCount))
 cd $WORKDIR
 cd AudioSentencePiece && git pull && cd ..
-mkdir -p $OUTPUTDIR_PREFIX
+mkdir -p $OUTPUTDIR_PREFIX                
 hrun \
   -c 8 -m 16 \
   -$(printf -- 'G%.0s' $(seq 1 $GPUCount)) -g $GPUType \
   zsh $RUNNING \
 ` # python3 AudioSentencePiece/main.py ` \
-  --output_dir "$OUTPUTDIR_PREFIX/AE_$(date +%Y%m%d_%H%M%S)" \
+  --run_name 'fullunit_noCIF_ASR' \
+  --output_dir "$OUTPUTDIR_PREFIX/$(date +%Y%m%d_%H%M%S)" \
   ` # setups ` ` # ~~~ # ` \
-  --task AE \
+  --task ASR \
   --datapath data/LibriSpeechUnits \
   --proj_name HuggingFaceSent \
-  --nolower ` # not ASR ` \
-  --autoencoder \
+  `     # --nolower  # ASR ` \
   \
   --train_split train-clean-100 \
   --dev_split dev-clean \
   ` # exp settings ` ` # --- # ` \
   --scratch \
+  --notcoll \
+  --original \
   ` # fixed ----------- ` \
-  -b $batchsize \
+  -b $batchsize -B $batchsize \
   ` # not important ` \
-  --metric_batch $(($batchsize * 2)) \
-  --verbose_batch 0
-
+  --metric_batch $(($batchsize * 1)) \
+  --verbose_batch 0                                                                                        
+  
 
 # parser.add_argument("--task", type=str, default='ASR')
 # parser.add_argument("--datapath", type=str, default="data/LibriSpeechUnits")

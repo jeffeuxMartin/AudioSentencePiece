@@ -195,6 +195,8 @@ def get_args():
     parser.add_argument("--collapse_n", type=int, default=0)
     parser.add_argument('--scratch', action='store_true')
     parser.add_argument("--nolower", action='store_false', dest='lower'); parser.set_defaults(lower=True)
+    parser.add_argument('--use_self', action='store_true')
+    parser.add_argument('--minimize_len', action='store_true')
     # !!! better fixed with care !!!!!!!!!!!!!!!!!!!1
     parser.add_argument("-e", "--epochs", type=int, default=10)
     parser.add_argument("-b", "--batch_size", type=int, default=6)

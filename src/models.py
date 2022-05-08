@@ -101,6 +101,8 @@ class SentBartEncoder(BartEncoder):
             self.skip_cif = True
         else:
             self.skip_cif = False
+        self.use_self = getattr(config, "use_self", False)
+        self.config.use_self = self.use_self
         
         self.post_initialization(embed_dim, word_extractor=cif_function)
         
@@ -199,7 +201,7 @@ class SentBartEncoder(BartEncoder):
             alpha_values = self.alpha_predictor(encoder__last_hidden_state)
             alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
 
-        if word_length_tensor is None:
+        if word_length_tensor is None or self.use_self:
             # print("No given! self predict")
             word_length_tensor = alpha_values.sum(-1).long()
         else:
@@ -223,7 +225,7 @@ class SentBartEncoder(BartEncoder):
         # length_loss = 0.
         length_loss = ((pred_word_lengths, word_length_tensor,)
             if word_length_tensor is not None else
-            (word_length_tensor, word_length_tensor,))
+            (pred_word_lengths, pred_word_lengths,))
             # aliased as `encoder_word_representation`
             # FIXME: distributed problem!
             # TODO: add other CIF ouptuts!
@@ -386,6 +388,8 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
 
         self.weight_len = getattr(config, "weight_len", None)
         self.config.weight_len = self.weight_len
+        self.minimize_len = getattr(config, "minimize_len", False)
+        self.config.minimize_len = self.minimize_len
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -485,6 +489,12 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             # real_length_loss = torch.linalg.vector_norm(outputs.encoder_length_loss.float(), ord=1)
             real_length_loss = loss_fct(*(outputs.encoder_length_loss))
             # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        elif self.minimize_len and word_length_tensor is None:
+            loss_fct = nn.L1Loss()
+            real_length_loss = loss_fct(
+                outputs.encoder_length_loss[0],
+                torch.zeros_like(outputs.encoder_length_loss[0]),
+            )
 
         loss = ((masked_lm_loss if masked_lm_loss is not None else 0.)
               + ((self.weight_len if self.weight_len is not None else 0.
