@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from dataclasses import dataclass
 from typing import Dict, Optional
 
@@ -20,13 +21,12 @@ if is_apex_available():
 from transformers.trainer_pt_utils import nested_detach
 
 
-
 @dataclass
 class AugTrainerState(TrainerState):
     masked_lm_loss: Optional[torch.FloatTensor] = None
     real_length_loss: Optional[torch.FloatTensor] = None
 
-class LogCallback(transformers.TrainerCallback):
+class LogCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
         pass
 
@@ -248,4 +248,3 @@ class AugSeq2SeqTrainer(Seq2SeqTrainer, AugTrainer):
             labels = None
 
         return (loss, generated_tokens, labels)
-

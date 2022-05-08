@@ -1,3 +1,4 @@
+#!/usr/bin/env python3  # ~~~ VERIFIED ~~~ #
 import logging
 from pathlib import Path
 
@@ -5,6 +6,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+
 
 class MyUnitDataset(Dataset):
     def __init__(self, units, texts=None, wordlen=None, lower=False): 
@@ -17,8 +19,10 @@ class MyUnitDataset(Dataset):
         if wordlen is not None:
             assert len(wordlen) == len(self.units)
         self.wordlen = wordlen
+    
     def __len__(self): 
         return len(self.units)
+    
     def __getitem__(self, idx): 
         return (
             self.units[idx], 
@@ -32,75 +36,41 @@ class MyUnitDataset(Dataset):
 
 
 def DataSetCollectorGeneral(
-    prefix_path, split, dtype2subdir_ext=None, lower=False,
-):
-    dtype2subdir_ext = ({} 
-        if dtype2subdir_ext is None else 
-        dtype2subdir_ext)
-    dtype2subdir_ext_default = {
-        'texts': dict(
-            subdir='texts',
-            ext='txt',
-        ),
-        'original_units': dict(
-            subdir='collunits',
-            ext='collunit',
-        ),
-        'wordlens': dict(
-            subdir='lengths',
-            ext='len',
-        ),
-    }
-    
-    dtype2subdir_ext_default.update(dtype2subdir_ext)
-    dtype2subdir_ext = dtype2subdir_ext_default
-
-    logging.warning('== ....      ==')
+    prefix_path: Path, 
+    split: str, 
+    dtype2subdir_ext: dict, 
+    lower: bool = False,
+  ):
+    logging.warning('== Loading data... ==')
     with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-        split=split, 
-        subdir=dtype2subdir_ext['texts']['subdir'],
-        ext=dtype2subdir_ext['texts']['ext'],
-    )) as f:
-        texts = f.read().strip().split('\n')
+        split=split, **dtype2subdir_ext.src)) as f:
+        src_data = f.read().strip().split('\n')
 
-    if 'texts' in dtype2subdir_ext:
+    if 'tgt' in dtype2subdir_ext:
         with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-            split=split, 
-            subdir=dtype2subdir_ext['original_units']['subdir'],
-            ext=dtype2subdir_ext['original_units']['ext'],
-        )) as f:
-            original_units = f.read().strip().split('\n')
-        assert len(texts) == len(original_units)
+            split=split, **dtype2subdir_ext.tgt)) as f:
+            tgt_data = f.read().strip().split('\n')
+        assert len(tgt_data) == len(src_data)
     else:
-        # print("NO "
-        #       "\033[01;31m"
-        #       "`{texts}`!"
-        #       "\033[0m")
-        texts = None
+        tgt_data = None
 
-    if 'wordlens' in dtype2subdir_ext:
+    if 'hint' in dtype2subdir_ext:
         with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
-            split=split, 
-            subdir=dtype2subdir_ext.get('wordlens', {}).get('subdir'),
-            ext=dtype2subdir_ext.get('wordlens', {}).get('ext'),
-        )) as f:
-            wordlens = f.read().strip().split('\n')
-        assert len(wordlens) == len(original_units)
+            split=split, **dtype2subdir_ext.hint)) as f:
+            hint_data = f.read().strip().split('\n')
+        assert len(hint_data) == len(src_data)
     else:
-        # print("NO "
-        #       "\033[01;31m"
-        #       "`{wordlens}`!"
-        #       "\033[0m")
-        wordlens = None
+        hint_data = None
 
-    mydataset = MyUnitDataset(original_units, texts, wordlens, lower=lower)
+    mydataset = MyUnitDataset(src_data, tgt_data, hint_data, lower=lower)
 
     return mydataset
 
-
 def Data_collate_fn(unit_tokenizer, text_tokenizer):
     # done: combine & 應該要都可以處理，沒 label 或 length
+
     def prepend_append(tok):
+        """ Solve the problem of <s> ... </s> """
         def f(s): return f"{tok.bos_token} {s} {tok.eos_token}"
         return f 
     unit_tokenizer.prepend_append = (prepend_append(unit_tokenizer) 
@@ -120,6 +90,7 @@ def Data_collate_fn(unit_tokenizer, text_tokenizer):
                 truncation=True,
                 max_length=1024,
             ))
+
         if labels[0] is not None:
             output_dict["labels"] = text_tokenizer(
                 list(map(text_tokenizer.prepend_append, labels)), 
@@ -128,9 +99,11 @@ def Data_collate_fn(unit_tokenizer, text_tokenizer):
                 truncation=True,
                 max_length=1024,
             )['input_ids']
+
         if wordlens[0] is not None:
             output_dict["word_length_tensor"] = torch.tensor(
                 np.array(wordlens, dtype=int))
+
         return output_dict
+        
     return collate_fn
-   

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3  # ~~~ VERIFIED ~~~ #
 from pathlib import Path
 from transformers import BartTokenizerFast, BartTokenizer
 from tokenizers.processors import RobertaProcessing
@@ -89,7 +90,7 @@ def build_tokenizer(
 def test(tokenizer):
     tokenizer([
       'uni_0032 uni_0033',
-      'uni_0032 uni_0033  uni_0033',
-      'uni_0032 uni_0033  uni_0033',
+      'uni_0012 uni_0023 uni_0043 uni_0036 uni_0026',
+      'uni_0032 uni_0044 uni_0033',
     ], return_tensors='pt', 
     padding=True, truncation=True)

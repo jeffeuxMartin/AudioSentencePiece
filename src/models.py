@@ -1,10 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3  # ~~~ VERIFIED ~~~ #
 
 # region         === importations ===         NOIGER #
+import math
+import random
+
 from typing import Union
 from typing import Tuple
 from typing import Optional
 from typing import List
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -13,40 +17,35 @@ from torch import nn
 from torch import Tensor
 from torch import FloatTensor
 from torch import LongTensor
-from torch.nn.modules.loss import L1Loss
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
-from torch.nn import CrossEntropyLoss, MSELoss
+from torch.nn.modules.loss import L1Loss
+from torch.nn import CrossEntropyLoss
+from torch.nn import MSELoss
+from torch.nn import CTCLoss
 
 from transformers import BartModel
 from transformers import BartForConditionalGeneration
 from transformers import BartConfig
-from transformers.models.bart.modeling_bart import BartEncoder, BartDecoder
-from transformers import logging
-from transformers.modeling_outputs import BaseModelOutput
-from transformers.modeling_outputs import Seq2SeqLMOutput
-from transformers.modeling_outputs import Seq2SeqModelOutput
-from transformers.modeling_outputs import CausalLMOutput
-from transformers.models.bart.modeling_bart import shift_tokens_right
 from transformers import get_linear_schedule_with_warmup
+from transformers.modeling_outputs import BaseModelOutput
+from transformers.modeling_outputs import Seq2SeqModelOutput
+from transformers.modeling_outputs import Seq2SeqLMOutput
+from transformers.modeling_outputs import CausalLMOutput
 from transformers.generation_utils import GenerationMixin
+from transformers import logging
+from transformers.models.bart.modeling_bart import BartEncoder
+from transformers.models.bart.modeling_bart import BartDecoder
+from transformers.models.bart.modeling_bart import shift_tokens_right
+from transformers.models.bart.modeling_bart import BartLearnedPositionalEmbedding, BartEncoderLayer
+from transformers.models.bart.modeling_bart import _expand_mask
 
 import pytorch_lightning as pl
 
 from .torch_cif import cif_function
 from .utils import mask_generator
 from .datasets import DataSetCollectorGeneral
-
-
-logger = logging.get_logger("transformers.models.bart.modeling_bart")
-import math
-from transformers.models.bart.modeling_bart import BartLearnedPositionalEmbedding, BartEncoderLayer
-from transformers.models.bart.modeling_bart import _expand_mask
-import random
-
-from dataclasses import dataclass
 # endregion      === importations ===      NOIGERDNE #
-
 
 # region       === aug_dataclasses ===        NOIGER #
 @dataclass
@@ -89,6 +88,8 @@ class AugSeq2SeqLMOutput(Seq2SeqLMOutput):
     masked_lm_loss: Optional[torch.FloatTensor] = None
     real_length_loss: Optional[torch.FloatTensor] = None
 # endregion    === aug_dataclasses ===     NOIGERDNE #
+
+logger = logging.get_logger("transformers.models.bart.modeling_bart")
 
 class SentBartEncoder(BartEncoder):
     def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
