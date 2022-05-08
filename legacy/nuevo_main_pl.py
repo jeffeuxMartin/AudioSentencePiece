@@ -58,11 +58,11 @@ from pytorch_lightning.loggers import WandbLogger
 from torchmetrics import WordErrorRate
 
 # --- self written --- #
-from src.newmodels import SentBartForConditionalGeneration as BartForConditionalGeneration
-from src.newmodels import pure_advanced_load_pretrained
-from src.newmodels import advanced_load_pretrained
+from legacy.newmodels import SentBartForConditionalGeneration as BartForConditionalGeneration
+from legacy.newmodels import pure_advanced_load_pretrained
+from legacy.newmodels import advanced_load_pretrained
 
-from src.newutils import get_args
+from legacy.src.newutils import get_args
 from src.build_tok import build_tokenizer
 # endregion      === importations ===      NOIGERDNE #
 

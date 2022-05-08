@@ -7,7 +7,7 @@ PRETRAINED_PREFIX = pathlib.Path("pret")
 CKPT_PREFIX = pathlib.Path("ckpts")
 EXP_PREFIX = pathlib.Path("exp")
 
-from src.newmodels import SentBartForConditionalGeneration
+from legacy.newmodels import SentBartForConditionalGeneration
 from torch.utils.data import Dataset, DataLoader
 import logging
 import os

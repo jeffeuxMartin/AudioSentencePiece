@@ -44,7 +44,6 @@ from torch.utils.data import Dataset, DataLoader
 import transformers
 from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
-from transformers import BartForConditionalGeneration
 from transformers import Trainer, TrainingArguments, TrainerCallback
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 from transformers import BartTokenizer
@@ -58,11 +57,11 @@ from pytorch_lightning.loggers import WandbLogger
 from torchmetrics import WordErrorRate
 
 # --- self written --- #
-from src.newmodels import SentBartForConditionalGeneration as BartForConditionalGeneration
-from src.newmodels import pure_advanced_load_pretrained
-from src.newmodels import advanced_load_pretrained
+from legacy.newmodels import SentBartForConditionalGeneration
+from legacy.newmodels import pure_advanced_load_pretrained
+from legacy.newmodels import advanced_load_pretrained
 
-from src.newutils import get_args
+from legacy.src.newutils import get_args
 from src.build_tok import build_tokenizer
 # endregion      === importations ===      NOIGERDNE #
 
@@ -267,9 +266,9 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
     # 1. logits --> id (because of "generate")
     # 2. acc removed
     import pathlib
-    pathlib.Path('./.cache/preds').mkdir(parents=True, exist_ok=True)
+    (pathlib.Path('./.cache/preds') / strftime(now(), r'%Y%m%d_%H%M%S')).mkdir(parents=True, exist_ok=True)
     def fn(eval_preds):  # For ASR, FIXME
-        metric = load_metric("wer", cache_dir='./.cache/preds')
+        metric = load_metric("wer", cache_dir=(pathlib.Path('./.cache/preds') / strftime(now(), r'%Y%m%d_%H%M%S')))
         predicted_texts = eval_preds.predictions
         label_texts = eval_preds.label_ids
 
@@ -291,10 +290,7 @@ def compute_metrics_WER(tokenizer):  # For ASR, FIXME
                 references=bat_REAL,
             )
             if ni % 20 == 20 - 1:
-                print(f"""
-Pred: \033[01;31m{bat_PRED[0]}\033[0m
-Refe: \033[01;32m{bat_REAL[0]}\033[0m
-""")
+                print(f"\n"f"Pred: \033[01;31m{bat_PRED[0]}\033[0m\n"f"Refe: \033[01;32m{bat_REAL[0]}\033[0m\n""")
         
         return {"wer": metric.compute()}
     return fn
@@ -321,17 +317,24 @@ if __name__ == "__main__":
     test_dataset = DataSetCollector('test')
     dummy_dataset = DataSetCollector('dummy')
 
-    model = load_cached(
-        BartForConditionalGeneration,
-        "voidful/asr_hubert_cluster_bart_base",
-        PRETRAINED_PREFIX / "hf_pretrains",
+    # model = load_cached(
+    #     SentBartForConditionalGeneration,
+    #     "voidful/asr_hubert_cluster_bart_base",
+    #     PRETRAINED_PREFIX / "hf_pretrains",
+    # )
+    model = SentBartForConditionalGeneration(
+        BartConfig.from_pretrained(
+            "facebook/bart-base",
+            vocab_size=len(tokenizer)
+        )
     )
 
-    # TODOLATER: unshared embeddings
-    if model.config.vocab_size != len(tokenizer):
-        model.resize_token_embeddings(len(tokenizer))
-    # CHECK XXX: resize embedding or config 正確的 embedding 數從頭？
+    # # TODOLATER: unshared embeddings
+    # if model.config.vocab_size != len(tokenizer):
+    #     model.resize_token_embeddings(len(tokenizer))
+    # # CHECK XXX: resize embedding or config 正確的 embedding 數從頭？
 
+    # AudioSentencePiece/nuevo_main.py --local_rank=0 --vram 23.7 -b 6 --lr 2e-4
     trainer = AugSeq2SeqTrainer(
         model=model,
         args=Seq2SeqTrainingArguments(
@@ -340,13 +343,13 @@ if __name__ == "__main__":
                 / pathlib.Path(strftime(now(), r'%Y%m%d_%H%M%S')),
             
             do_train=True,
-            logging_steps=10,
+            logging_steps=5,
             per_device_train_batch_size=args.batch_size,
             
             do_eval=True,
-            eval_steps=1500,
+            eval_steps=500,
             evaluation_strategy="steps",
-            eval_accumulation_steps=15,
+            eval_accumulation_steps=25,
             per_device_eval_batch_size=args.batch_size,
             predict_with_generate=True,
             generation_max_length=512,

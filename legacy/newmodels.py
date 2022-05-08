@@ -33,9 +33,9 @@ from transformers.generation_utils import GenerationMixin
 
 import pytorch_lightning as pl
 
-from .torch_cif import cif_function
-from .newutils import mask_generator
-from .datasets import UnitDataset
+from ..src.torch_cif import cif_function
+from .src.newutils import mask_generator
+from .src.datasets import UnitDataset
 
 
 logger = logging.get_logger("transformers.models.bart.modeling_bart")

@@ -13,7 +13,7 @@ PAD_ID = 1
 
 
 if "loggings":
-    import logging, logging.config; from src.logging import MYCONFIG; 
+    import logging, logging.config; from legacy.src.logging import MYCONFIG; 
     logging.basicConfig(format='\033[0;36m''%(message)s''\033[0m'); 
     logging.config.dictConfig(MYCONFIG); mylogger = logging.getLogger('main')
     PRINTINFO = mylogger.info; PRINTDEBUG = mylogger.debug
@@ -29,21 +29,17 @@ from transformers import BartConfig
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-try:
-    from pytorch_lightning.strategies import DDPStrategy
-except:
-    print("Where is DDP?")
-
+from pytorch_lightning.strategies.ddp import DDPStrategy
 from torchmetrics import WordErrorRate
 
-from src.newmodels import SentBart
-from src.newmodels import SentBartForConditionalGeneration
-from src.newmodels import pure_advanced_load_pretrained
-from src.newmodels import advanced_load_pretrained
+from legacy.newmodels import SentBart
+from legacy.newmodels import SentBartForConditionalGeneration
+from legacy.newmodels import pure_advanced_load_pretrained
+from legacy.newmodels import advanced_load_pretrained
 
-from src.datasets import UnitDataset
-from src.newutils import get_args
-from src.newutils import load_cached; load_cached = load_cached(PRINTDEBUG)
+from legacy.src.datasets import UnitDataset
+from legacy.src.newutils import get_args
+from legacy.src.newutils import load_cached; load_cached = load_cached(PRINTDEBUG)
 
 def on_device(inputs, device, tolabel=False):
     input_ids = inputs["input_ids"]
@@ -116,9 +112,9 @@ if __name__ == '__main__':
         assert AEModel.get_encoder().config.hidden_size > 0  # 768
     else:
         BEModel = advanced_load_pretrained(
-            # checkpoint_name=checkpoint_name,
+            checkpoint_name=checkpoint_name,
             # checkpoint_name="jjjjj/checkpoint-80",
-            checkpoint_name="./jRRMM/checkpoint-4700",
+            # checkpoint_name="./jRRMM/checkpoint-4700",
             
             model_class=SentBartForConditionalGeneration, 
             config_class=BartConfig, 
@@ -333,7 +329,7 @@ class PLNew(pl.LightningModule):
         return (loss, outputs) if return_outputs else loss
 
         
-    def configure_optimizers(self):
+    def configure_optimizers__old(self):
         # Ref.: https://github.com/PyTorchLightning/pytorch-lightning/issues/328
         optimizer = torch.optim.AdamW(
             params=self.parameters(), 
@@ -344,7 +340,7 @@ class PLNew(pl.LightningModule):
         )
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            patience=3,
+            patience=1,
             verbose=True,
         )
         return {
@@ -352,6 +348,46 @@ class PLNew(pl.LightningModule):
            'lr_scheduler': scheduler,  # Changed scheduler to lr_scheduler
            'monitor': 'valid_loss',
        }
+       
+    def setup(self, stage=None) -> None:
+        if stage != "fit":
+            return
+        # Get dataloader by calling it - train_dataloader() is called after setup() by default
+        train_loader = self.train_dataloader()
+
+        # Calculate total steps
+        tb_size = self.hparams.batch_size * max(1, self.trainer.num_devices)
+        ab_size = self.trainer.accumulate_grad_batches * float(self.trainer.max_epochs)
+        self.total_steps = (len(train_loader.dataset) // tb_size) // ab_size
+
+    def configure_optimizers(self):
+        from torch.optim import AdamW
+        """Prepare optimizer and schedule (linear warmup and decay)"""
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.hparams["weight_decay"],
+            },
+            {
+                "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = AdamW(
+            optimizer_grouped_parameters, 
+            lr=self.hparams["lr"],
+            eps=self.hparams.get('adam_epsilon', 1e-8))
+
+        from transformers import get_linear_schedule_with_warmup
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.hparams.get("warmup_steps", 250),
+            num_training_steps=self.total_steps,
+        )
+        scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
+        return [optimizer], [scheduler]
+
     
        
     def training_step(self, batch, batch_idx):
@@ -574,8 +610,9 @@ if __name__ == "__main__":
     else:
         semantic_model = PLNew(BEModel, tokenizer=bart_tokenizer, wandb_logger=wandb_logger if LOG_WANDB else None,
         datasets=(train_dataset, dev_dataset), metric_cls=WordErrorRate, hparams={
-            "lr": 6e-5,
-            "batch_size": 5,
+            "lr": 3e-5,
+            # "lr": 6e-4,
+            "batch_size": 12,
             "weight_decay": 0.01,
         }
         )
@@ -587,13 +624,19 @@ if __name__ == "__main__":
             val_check_interval=0.05,
             # check_val_every_n_epoch=1,
             default_root_dir="exp/rewritten22/checkpoints_debugged222",
-            max_epochs=20,
-            strategy=DDPStrategy(find_unused_parameters=False) if any('--local_rank' in i for i in sys.argv) else None,
+            max_epochs=20 + 50,
+            strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
+            # resume_from_checkpoint='./exp/wandb_savior222/3guoe4x2'
+            # ckpt_path='./exp/wandb_savior222/BartUnitWordSemanticsASR/3guoe4x2'
+            # /home/jeffeuxmartin/AudioWords/./exp/wandb_savior222/BartUnitWordSemanticsASR/3guoe4x2/checkpoints/epoch=19-step=28400.ckpt
+            
         )
 
         PRINTINFO('=== START TRAINING! ===')
         lightning_trainer.fit(
             semantic_model,
+            # ckpt_path='./exp/wandb_savior222/BartUnitWordSemanticsASR/3guoe4x2/checkpoints/epoch=19-step=28400.ckpt',
+            ckpt_path='/home/jeffeuxmartin/AudioWords/exp/wandb_savior222/BartUnitWordSemanticsASR/h9im5sjh/checkpoints/epoch=0-step=455.ckpt',
         )
 
         pass

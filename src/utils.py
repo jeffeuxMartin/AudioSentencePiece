@@ -1,82 +1,149 @@
-from typing import List
+import os
 import argparse
-import numpy as np
+import logging
+import pathlib
+
 import torch
-from torch import Tensor
 
-def get_args():
-    parser = argparse.ArgumentParser()
+from transformers import AutoConfig
+
+
+FORMAT = '\033[01;31m%(asctime)s\033[0m %(message)s'
+logging.basicConfig(format=FORMAT)
+
+
+
+def pure_advanced_load_pretrained(
+    pretrained_model, 
+    model, 
+    verbose=(lambda *a: None),
+):
+    pretrained_dict = dict(pretrained_model.state_dict())
+    new_dict = model.state_dict()
+
+    for key_src in pretrained_model.state_dict():
+        val_src = pretrained_dict[key_src]
+        val_tgt = new_dict.get(key_src, None)
+        if val_tgt is not None:
+            # 都有
+            if val_src.shape != val_tgt.shape:
+                # 但重新更新了
+                verbose(f"{key_src} reshaped! {val_src.shape} | {val_tgt.shape}")
+                pretrained_dict.pop(key_src)
+            else:
+                # OK
+                # verbose('Matched!')
+                pass
+        else:
+            # 舊的有新的沒有
+            verbose(f"{key_src} missing in new model! {val_src.shape}")
+            pretrained_dict.pop(key_src)
+    # 舊的沒有新的有，應該會被忽略！
+    model.load_state_dict(pretrained_dict)
+    return model
+
+def advanced_load_pretrained(
+    checkpoint_name, 
+    model_class, 
+    config_class, 
+    verbose=(lambda *a: None),  # verbose=print,
+    **new_config_options,
+):
+    """
+    config_class = AutoConfig
+    because with a pretrained, with an AutoConfig
+    """
+    newconfig = config_class.from_pretrained(
+        checkpoint_name, 
+        **new_config_options)
+    newconfig.update(new_config_options)  # FIXME: redundant???
+        # No! 如果有會蓋，但新的不會加，要 update
+        # Yes? 其實可以只用後面這步
+
+    pretrained_model = model_class.from_pretrained(checkpoint_name)
+    model = model_class(config=newconfig)
     
-    parser.add_argument(
-        "-b", "--batch_size_train",
-        type=int, default=8,
+    model = pure_advanced_load_pretrained(
+        pretrained_model=pretrained_model,
+        model=model,
+        verbose=verbose,
     )
 
-    parser.add_argument(
-        "-B", "--batch_size_eval",
-        type=int, default=8,
-    )
+    del pretrained_model
+    return model
 
-    parser.add_argument(
-        "-l", "--lr", "--learning_rate",
-        type=float, default=3e-4,
-    )
 
-    parser.add_argument(
-        "-L", "--max_len", "--max_length",
-        type=int, default=700,
-    )
 
-    parser.add_argument(
-        "-v", "--validation", "--validation_portioin",
-        type=int, default=10,
-    )
-
-    parser.add_argument(
-        "-e", "--epochs", 
-        type=int, default=6,
-    )
+def load_cached_pure(PRINTDEBUG):
+    def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
+        PRINTDEBUG(msg)
+        if os.path.isdir(saved_path):
+            PRINTDEBUG('    (Using local cache...)')
+            obj = cls.from_pretrained(saved_path)
+        else:
+            PRINTDEBUG('    (Loading pretrained...)')
+            obj = cls.from_pretrained(obj_name)
+            obj.save_pretrained(saved_path)
+        return obj
+    return load_cached
     
-    parser.add_argument(
-        "-o", "--output_dir", 
-        type=str, 
-        default="./token_autoencoder",
-    )
 
-    parser.add_argument(
-        "-w", "--warmup_steps", 
-        type=int, 
-        default=1000,
-    )
+def load_cached(cls, obj_name, saved_path, msg="Loading ..."):
+    logging.warning(msg)
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
+    if os.path.isdir(saved_path):
+        logging.warning('    (Using local cache...)')
+        obj = cls.from_pretrained(saved_path)
+        # obj = advanced_load_pretrained(obj_name, cls, type(config), **config)
+    else:
+        logging.warning('    (Loading pretrained...)')
+        obj = cls.from_pretrained(obj_name)
+        # obj = advanced_load_pretrained(obj_name, cls, type(config), **config)
+        obj.save_pretrained(saved_path)
+    return obj
+
+def load_cached_config(cls, obj_name, saved_path, config=None, msg="Loading ..."):
+    """ 
+    If enter this, USE pretrained (local or remot) is confirmed! 
+    We try to match maximized!
+    Otherwise, 
+        config = AutoConfig(collapse_n=-1)
+        model = cls(config)
+    """
     
-    args = parser.parse_args()
-    return args  # , config, backup_files
+    config = {} if config is None else config
+    logging.warning(msg)
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
+    if os.path.isdir(saved_path):
+        # print(saved_path)
+        logging.warning('    (Using local cache...)')
+        # obj = cls.from_pretrained(saved_path)
+        obj = advanced_load_pretrained(saved_path, cls, AutoConfig, **config)
+    else:
+        pathlib.Path(saved_path
+            ).mkdir(0o755, parents=True, exist_ok=True)    
+        logging.warning('    (Loading pretrained...)')
+        # pretrained_config = config
+        # obj = cls.from_pretrained(obj_name, config)
+        obj = advanced_load_pretrained(obj_name, cls, AutoConfig, **config)
+        obj.save_pretrained(saved_path)
+    return obj
 
-def compute_metrics(eval_preds, PAD_TOKEN=503):
-    logits, (labels, attn_mask) = eval_preds
-    predictions = np.argmax(logits, axis=-1)
+def load_cached_tokenizer(cls, obj_name, saved_path, msg="Loading ..."):
+    if os.path.isdir(saved_path):
+        if list(pathlib.Path(saved_path).glob('*')) == []:
+            pathlib.Path(saved_path).rmdir()
+    tokenizer = load_cached(cls, obj_name, saved_path, msg)
+    speech_units = ['uni_{:04d}'.format(d) for d in range(500)]  # TODOLATER: modify format
+    if speech_units[0] not in tokenizer.get_vocab():  
+        tokenizer.add_tokens(speech_units)
+        tokenizer.save_pretrained(saved_path)
+    return tokenizer
 
-    counted = (labels != -100) & (labels != PAD_TOKEN)
-    # assert torch.equal(counted, attn_mask)
-    if np.array_equal(counted, attn_mask):
-        correct = ((predictions == labels) * counted).sum(-1)
-    else:  # ??? FIXME!
-        correct = ((predictions == labels) * attn_mask).sum(-1)
-    return {
-        "acc":
-            (correct / counted.sum(-1)).mean()
-    }
-
-def range_checker(stacked_codes, PREPADDING_ID=-1):
-    MAX = stacked_codes.max().item()
-    MIN = stacked_codes.min().item()
-    ORIGINAL_MIN = (
-        stacked_codes[stacked_codes != PREPADDING_ID
-        ].min().item() if MIN == PREPADDING_ID else 
-        MIN)
-    PREPADDING = MIN == PREPADDING_ID
-    
-    return ORIGINAL_MIN, MAX, PREPADDING
 
 def mask_generator(X_len, X=None, max_len=None):
     """
@@ -106,70 +173,57 @@ def mask_generator(X_len, X=None, max_len=None):
         < X_len[:, None]).long()
     )
 
-def unpad_sequence(padded_sequences, lengths, batch_first=False):
-    # type: (Tensor, Tensor, bool) -> List[Tensor]
-    # ~~~ Copied from PyTorch
-    r"""Unpad padded Tensor into a list of variable length Tensors
+def get_args():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--run_name", type=str, default=None)
+    parser.add_argument("-b", "--batch_size", type=int, default=6)
+    parser.add_argument("-lr", "--lr", type=float, default=2e-4)
+    parser.add_argument("-e", "--epochs", type=int, default=10)
+    parser.add_argument("--eval_steps", type=int, default=500)
+    parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--vram", type=float, default=10)
 
-    ``unpad_sequence`` unstacks padded Tensor into a list of variable length Tensors.
+    parser.add_argument("--weight_len", type=float, default=None)
+    parser.add_argument("--notcoll", 
+        action='store_false', dest='coll')
+    parser.set_defaults(coll=True)
 
-    Example:
-        >>> from torch.nn.utils.rnn import pad_sequence, unpad_sequence
-        >>> a = torch.ones(25, 300)
-        >>> b = torch.ones(22, 300)
-        >>> c = torch.ones(15, 300)
-        >>> sequences = [a, b, c]
-        >>> padded_sequences = pad_sequence(sequences)
-        >>> lengths = torch.as_tensor([v.size(0) for v in sequences])
-        >>> unpadded_sequences = unpad_sequence(padded_sequences, lengths)
-        >>> torch.allclose(sequences[0], unpadded_sequences[0])
-        True
-        >>> torch.allclose(sequences[1], unpadded_sequences[1])
-        True
-        >>> torch.allclose(sequences[2], unpadded_sequences[2])
-        True
+    parser.add_argument("--nowandb", 
+        action='store_false', dest='wandb')
+    parser.set_defaults(wandb=True)
 
-    Args:
-        padded_sequences (Tensor): padded sequences.
-        lengths (Tensor): length of original (unpadded) sequences.
-        batch_first (bool, optional): whether batch dimension first or not. Default: False.
+    parser.add_argument("--nolower", 
+        action='store_false', dest='lower')
+    parser.set_defaults(lower=True)
 
-    Returns:
-        a list of :class:`Tensor` objects
-    """
+    parser.add_argument('--fix_encoder', action='store_true')
+    parser.add_argument('--original', action='store_true')
+    parser.add_argument('--autoencoder', action='store_true')
 
-    unpadded_sequences = []
+    args = parser.parse_args()
 
-    if not batch_first:
-        padded_sequences.transpose_(0, 1)
+    batch_scaled_up = max(int(args.vram / 10.), 1)
+    # args.batch_size *= batch_scaled_up
+    # if batch_scaled_up > 1:
+    #     logging.warning(
+    #         f"Batch size resized to {args.batch_size:3d}..."
+    #     )
 
-    max_length = padded_sequences.shape[1]
-    idx = torch.arange(max_length)
+    default_run_name = (
+        # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
+        f"lr = {args.lr}, bsz = {args.batch_size}, {args.epochs} epochs"
+        + (" (coll)" if args.coll else " (orig)")
+        + (" (lower)" if args.lower else " (normalcase)")
+        + (" (fix_encoder)" if args.fix_encoder else "")
+        + (" (orignalTfm)" if args.original else "")
+        + (" (autoencoder)" if args.autoencoder else "")
+        + (f" weight_len = {args.weight_len}" if args.weight_len is not None else "")
+    )
+    if args.run_name is None:
+        args.run_name = default_run_name
+    else:
+        args.run_name = args.run_name + " " + default_run_name
+    return args
 
-    for seq, length in zip(padded_sequences, lengths):
-        mask = idx < length
-        unpacked_seq = seq[mask]
-        unpadded_sequences.append(unpacked_seq)
-
-    return unpadded_sequences
-
-def shift_embeds_right(
-    input_embeds: torch.Tensor, 
-    pad_token_embed: torch.Tensor, 
-    decoder_start_token_embed: torch.Tensor,
-  ):
-    """
-    Shift input ids one embed to the right.
-    """
-    shifted_input_embeds = input_embeds.new_zeros(input_embeds.shape)
-    shifted_input_embeds[:, 1:] = input_embeds[:, :-1].clone()
-    shifted_input_embeds[:, 0] = decoder_start_token_embed
-
-    if pad_token_embed is None:
-        raise ValueError("self.model.config.pad_token_embed has to be defined.")
-    # replace possible -100 values in labels by `pad_token_embed`
-    # XXX: to fix? how to "recognize" [PAD]?
-    shifted_input_embeds.masked_fill_(shifted_input_embeds == -100, pad_token_embed)
-
-    return shifted_input_embeds
 

@@ -1,112 +1,136 @@
-#!/usr/bin/env python3
-
-import os
+import logging
+from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 import torch
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
-from .newutils import mask_generator
-
-def _string_parser(s):
-    return np.fromstring(s, dtype=int, sep=' ')
-
-class UnitDataset(Dataset):
-    def dataframe_reader(self):
-        units = self.df["units"].map(_string_parser).map(torch.tensor)
-        unit_lengths = units.map(len)
-        self.df = pd.DataFrame.from_dict({
-            **self.df.to_dict(),
-            "units": units,
-            "unit_lengths": unit_lengths,
-        })
-        
-    @classmethod
-    def dataframe_sorter(cls, fname):
-        df = pd.read_csv(fname, sep='\t')
-        unit_lengths = df["units"].map(_string_parser).map(torch.tensor).map(len)
-        df = pd.DataFrame.from_dict({**df.to_dict(),"unit_lengths": unit_lengths})
-        df = df.sort_values("unit_lengths", ascending=False)
-        df[["data_path", "src_txt", "units", "pseudotexts", "length_src", "spwords"]].to_csv(fname + '.sorted.tsv', sep='\t')
-        return fname + '.sorted.tsv'
-        
-    # TODO: How about ST?
-    def __init__(self, dataframe, tokenizer):
-        self.tokenizer = tokenizer
-        
-        # ref.: https://stackoverflow.com/questions/1006289/how-to-find-out-the-number-of-cpus-using-python
-        self.num_workers = len(os.sched_getaffinity(0))
-        
-        self.df = dataframe
-        self.dataframe_reader()
-
-        self.units = self.df["units"].values
-        self.lengths = torch.LongTensor(self.df["length_src"].values)
-        self.texts = self.df["src_txt"].values
-        self.unit_lengths = self.df["unit_lengths"].values
-        
-    def __getitem__(self, idx):
+class MyUnitDataset(Dataset):
+    def __init__(self, units, texts=None, wordlen=None, lower=False): 
+        self.units = units
+        if texts is not None:
+            assert len(texts) == len(self.units)
+        self.texts = texts
+        if lower:
+            self.texts = [s.lower() for s in self.texts]
+        if wordlen is not None:
+            assert len(wordlen) == len(self.units)
+        self.wordlen = wordlen
+    def __len__(self): 
+        return len(self.units)
+    def __getitem__(self, idx): 
         return (
-            self.units[idx],
-            self.lengths[idx],
-            self.texts[idx],
-            self.unit_lengths[idx],
+            self.units[idx], 
+            self.texts[idx] 
+                if self.texts is not None else 
+                None,
+            self.wordlen[idx] 
+                if self.wordlen is not None else 
+                None,
         )
-        
-    def __len__(self):
-        return len(self.df)
 
-    @classmethod
-    def tokenized_collate_fn(cls, 
-        tokenizer,
-        padding_value=-100, 
-        max_unit_length=1024, 
-        max_text_length=512,
-        unit_shift_ids=4,
-    ):
 
-        def collate_fn(batch):
-            units, lengths, texts, unit_lengths = list(zip(*batch))
+def DataSetCollectorGeneral(
+    prefix_path, split, dtype2subdir_ext=None, lower=False,
+):
+    dtype2subdir_ext = ({} 
+        if dtype2subdir_ext is None else 
+        dtype2subdir_ext)
+    dtype2subdir_ext_default = {
+        'texts': dict(
+            subdir='texts',
+            ext='txt',
+        ),
+        'original_units': dict(
+            subdir='collunits',
+            ext='collunit',
+        ),
+        'wordlens': dict(
+            subdir='lengths',
+            ext='len',
+        ),
+    }
+    
+    dtype2subdir_ext_default.update(dtype2subdir_ext)
+    dtype2subdir_ext = dtype2subdir_ext_default
 
-            if not "unshifted":
-                units = pad_sequence(units, 
-                    batch_first=True, 
-                    padding_value=padding_value)
-                units = units[..., :max_unit_length]
-            else:
-                units = [torch.concat([
-                    torch.tensor([0 - unit_shift_ids]),  # bos_token_id
-                    unit_seq,
-                    torch.tensor([2 - unit_shift_ids]),  # eos_token_id
-                ]) for unit_seq in units]
-                units = pad_sequence(units, 
-                    batch_first=True, 
-                    padding_value=padding_value - unit_shift_ids)
-                units = units + unit_shift_ids
-                units = units[..., :max_unit_length]
+    logging.warning('== ....      ==')
+    with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+        split=split, 
+        subdir=dtype2subdir_ext['texts']['subdir'],
+        ext=dtype2subdir_ext['texts']['ext'],
+    )) as f:
+        texts = f.read().strip().split('\n')
 
-            lengths = torch.tensor(lengths
-            ).clip(max=min(max_unit_length, max_text_length))
-            
-            text_tokens = tokenizer(list(texts), 
-                return_tensors='pt', padding=True, truncation=True, max_length=max_text_length)
-            
-            if not "unshifted":
-                unit_lengths = torch.tensor(unit_lengths).clip(max=max_unit_length)
-            else:
-                unit_lengths = (torch.tensor(unit_lengths) + 2).clip(max=max_unit_length)
-            unit_attention_mask = mask_generator(unit_lengths)
-            
-            return dict(
-                input_ids=units,
-                word_length_tensor=lengths,
-                texts=texts,
-                unit_lengths=unit_lengths,
-                attention_mask=unit_attention_mask,
-                text_tokens=text_tokens,
-            )
+    if 'texts' in dtype2subdir_ext:
+        with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+            split=split, 
+            subdir=dtype2subdir_ext['original_units']['subdir'],
+            ext=dtype2subdir_ext['original_units']['ext'],
+        )) as f:
+            original_units = f.read().strip().split('\n')
+        assert len(texts) == len(original_units)
+    else:
+        # print("NO "
+        #       "\033[01;31m"
+        #       "`{texts}`!"
+        #       "\033[0m")
+        texts = None
 
-        return collate_fn
+    if 'wordlens' in dtype2subdir_ext:
+        with open(Path(prefix_path) / '{subdir}/{split}.{ext}'.format(
+            split=split, 
+            subdir=dtype2subdir_ext.get('wordlens', {}).get('subdir'),
+            ext=dtype2subdir_ext.get('wordlens', {}).get('ext'),
+        )) as f:
+            wordlens = f.read().strip().split('\n')
+        assert len(wordlens) == len(original_units)
+    else:
+        # print("NO "
+        #       "\033[01;31m"
+        #       "`{wordlens}`!"
+        #       "\033[0m")
+        wordlens = None
+
+    mydataset = MyUnitDataset(original_units, texts, wordlens, lower=lower)
+
+    return mydataset
+
+
+def Data_collate_fn(unit_tokenizer, text_tokenizer):
+    # done: combine & 應該要都可以處理，沒 label 或 length
+    def prepend_append(tok):
+        def f(s): return f"{tok.bos_token} {s} {tok.eos_token}"
+        return f 
+    unit_tokenizer.prepend_append = (prepend_append(unit_tokenizer) 
+        if unit_tokenizer(['']).get("input_ids", None) == [[]] else 
+        lambda x: x)
+    text_tokenizer.prepend_append = (prepend_append(text_tokenizer) 
+        if text_tokenizer(['']).get("input_ids", None) == [[]] else 
+        lambda x: x)
+
+    def collate_fn(batch):
+        input_ids, labels, wordlens = list(zip(*batch))
+        output_dict = dict(
+            **unit_tokenizer(
+                list(map(unit_tokenizer.prepend_append, input_ids)), 
+                return_tensors='pt', 
+                padding=True, 
+                truncation=True,
+                max_length=1024,
+            ))
+        if labels[0] is not None:
+            output_dict["labels"] = text_tokenizer(
+                list(map(text_tokenizer.prepend_append, labels)), 
+                return_tensors='pt', 
+                padding=True, 
+                truncation=True,
+                max_length=1024,
+            )['input_ids']
+        if wordlens[0] is not None:
+            output_dict["word_length_tensor"] = torch.tensor(
+                np.array(wordlens, dtype=int))
+        return output_dict
+    return collate_fn
+   

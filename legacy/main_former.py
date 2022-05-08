@@ -4,7 +4,7 @@ LOG_WANDB = False
 MAXUNITLEN = 200
 
 if "loggings":
-    import logging, logging.config; from src.logging import MYCONFIG; 
+    import logging, logging.config; from legacy.src.logging import MYCONFIG; 
     logging.basicConfig(format='\033[0;36m''%(message)s''\033[0m'); 
     logging.config.dictConfig(MYCONFIG); mylogger = logging.getLogger('main')
     PRINTINFO = mylogger.info; PRINTDEBUG = mylogger.debug
@@ -22,12 +22,12 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from torchmetrics import WordErrorRate
 
-from src.models import PLSpeechToSemantics
-from src.models import WordLevelBartAutoEncoder
+from legacy.src.models import PLSpeechToSemantics
+from legacy.src.models import WordLevelBartAutoEncoder
 
-from src.datasets import UnitDataset
-from src.newutils import get_args
-from src.newutils import load_cached; load_cached = load_cached(PRINTDEBUG)
+from legacy.src.datasets import UnitDataset
+from legacy.src.newutils import get_args
+from legacy.src.newutils import load_cached; load_cached = load_cached(PRINTDEBUG)
 
 
 if __name__ == '__main__':
