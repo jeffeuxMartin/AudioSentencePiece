@@ -37,10 +37,12 @@ IntUnits = TrainingDataType("units", "unit")
 
 TextData = TrainingDataType("texts", "txt")
 SubwordData = TrainingDataType("subwords", "subword")
+EnDeSubwordData = TrainingDataType("endesubwords", "endesubword")
 DeSubwordData = TrainingDataType("desubwords", "desubword")
 TranslationData = TrainingDataType("translation", "de")
 
 EnLengthData = TrainingDataType("lengths", "len")
+DeLengthData = TrainingDataType("delengths", "delength")
 EnDeLengthData = TrainingDataType("endelengths", "endelength")
 WordLengthData = TrainingDataType("wordlengths", "wordlen")
 PathData = TrainingDataType("paths", "path")
