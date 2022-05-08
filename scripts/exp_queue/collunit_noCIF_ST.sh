@@ -15,7 +15,7 @@ batchsize=$(($ALLbatch / $GPUCount))
 cd $WORKDIR
 cd AudioSentencePiece && git pull && cd ..
 mkdir -p $OUTPUTDIR_PREFIX                
-hrun \
+hrun $SPOT \
   -c 8 -m 16 \
   -$(printf -- 'G%.0s' $(seq 1 $GPUCount)) -g $GPUType \
   zsh $RUNNING \
