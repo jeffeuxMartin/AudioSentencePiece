@@ -20,7 +20,7 @@ hrun \
   -$(printf -- 'G%.0s' $(seq 1 $GPUCount)) -g $GPUType \
   zsh $RUNNING \
 ` # python3 AudioSentencePiece/main.py ` \
-  --run_name 'fullunit_noCIF_ASR' \
+  --run_name 'collunit_noCIF_ST' \
   --output_dir "$OUTPUTDIR_PREFIX/$(date +%Y%m%d_%H%M%S)" \
   ` # setups ` ` # ~~~ # ` \
   --task ASR \
