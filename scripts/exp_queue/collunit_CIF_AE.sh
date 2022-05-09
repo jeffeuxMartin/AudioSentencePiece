@@ -1,4 +1,4 @@
-# ALLbatch=18 GPUType=3090 GPUCount=3 zsh ~/AudioWords/AudioSentencePiece/scripts/exp_queue/collunit_CIF_AE.sh                          # full unit --> batchsz smaller
+# ALLbatch=18 GPUType=3090 GPUCount=3 zsh ~/AudioWords/AudioSentencePiece/scripts/exp_queue/collunit_CIF_AE.sh
 # ALLbatch=9
 # GPUType=2080Ti    # 9                      
 # GPUCount=3
