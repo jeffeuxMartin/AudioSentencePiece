@@ -43,8 +43,8 @@
 * [ ]     3. collunit others2s (load ASR fix) ST
 * [ ]             // 6. fullunit others2s (load ASR init) ST
 * [ ]     7. fullunit others2s (load ASR fix) ST
-    
-    
+
+
 
 * [ ]             // 2. collunit CIF (load AE init) IC
 * [ ]     3. collunit CIF (load AE fix) IC
