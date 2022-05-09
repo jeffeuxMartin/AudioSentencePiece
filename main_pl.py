@@ -20,14 +20,18 @@ import os
 from datetime import datetime
 strftime, now = datetime.strftime, datetime.now
 
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
+
 import transformers
 from transformers import AutoTokenizer
 from transformers.models.auto.configuration_auto import AutoConfig
+from transformers import get_linear_schedule_with_warmup
 
-# import pytorch_lightning as pl
+import pytorch_lightning as pl
 # from pytorch_lightning.loggers import WandbLogger
 # from pytorch_lightning.strategies.ddp import DDPStrategy
-# from torchmetrics import WordErrorRate
+from torchmetrics import WordErrorRate
 
 # --- self written --- #
 from src.models import SentBartForConditionalGeneration
@@ -68,10 +72,12 @@ def main():
     )
 
     train_dataset = LIBRISPEECH_UNIT_ASR_SPLIT(args.train_split)
-    if args.dev_split != 'none':
-        dev_dataset = LIBRISPEECH_UNIT_ASR_SPLIT(args.dev_split)
-    if args.test_split is not None:
-        test_dataset = LIBRISPEECH_UNIT_ASR_SPLIT(args.test_split)
+    
+    dev_dataset = (LIBRISPEECH_UNIT_ASR_SPLIT(args.dev_split)
+        if args.dev_split != 'none' else None)
+    
+    test_dataset = (LIBRISPEECH_UNIT_ASR_SPLIT(args.test_split)
+        if args.test_split is not None else None)
 
     # === experiment setup === #
     exp_config = dict(
@@ -104,6 +110,147 @@ def main():
     if args.fix_encoder:
         model.fix_encoder_()
         
+    return args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn
+        
+        
+# model, datasets, tokenizer, metric, hparams, collate_fn,
+class PLModel(pl.LightningModule):
+    def __init__(self,
+        model, datasets, tokenizer, metric, hparams, collate_fn,
+    ):
+        super().__init__()
+        self.hparams.update(hparams)
+        
+        self.model = model
+        self.tokenizer = tokenizer
+        
+        self.trainset, self.valset = datasets
+        
+        self.metric = dict(
+            train=metric(),
+            valid=metric(),
+        )
+        self.collate_fn = collate_fn
+        
+    def forward(self, inputs):
+        return self.model(**inputs)
+        
+    def generate(self, *args, **kwargs):
+        return self.model.generate(*args, **kwargs)
+        
+    def setup(self, stage=None) -> None:
+        if stage != "fit":
+            return
+        # Get dataloader by calling it - train_dataloader() is called after setup() by default
+        train_loader = self.train_dataloader()
+
+        # Calculate total steps
+        tb_size = self.hparams.batch_size * max(1, self.trainer.num_devices)
+        ab_size = self.trainer.accumulate_grad_batches * float(self.trainer.max_epochs)
+        self.total_steps = (len(train_loader.dataset) // tb_size) // ab_size
+
+    def configure_optimizers(self):
+        """Prepare optimizer and schedule (linear warmup and decay)"""
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.hparams.get("weight_decay", 0.1),
+            },
+            {
+                "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = AdamW(
+            optimizer_grouped_parameters, 
+            lr=self.hparams["lr"],
+            eps=self.hparams.get('adam_epsilon', 1e-8))
+
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.hparams.get("warmup_steps", 500),
+            num_training_steps=self.total_steps,
+        )
+        scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
+        return [optimizer], [scheduler]
+    
+    def training_step(self, wbatch, batch_idx):
+        batch = wbatch.data
+        outputs = self(batch)
+        assert self.training
+        self.log(f"train_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
+        
+        # predicted_ids = outputs.logits.argmax(-1)
+        # predicted_texts = self.tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
+        # groundtruth_texts = batch["texts"]
+    
+        # ~~~ BUILD: demo dataframe ~~~ #
+        
+        return dict(
+            loss=outputs.loss,
+            # preds=predicted_texts,
+            # target=groundtruth_texts,
+        )
+
+    def validation_step(self, wbatch, batch_idx):
+        batch = wbatch.data
+        outputs = self(batch)
+        assert not self.training
+
+        self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
+
+        ar_preds = self.generate(
+            **wbatch.gendata, 
+            num_beams=1,
+            max_length=args.generation_max_length,
+        )
+        ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
+        self.metric['valid'].update(ar_texts, wbatch.labels)
+        
+        
+        
+        return dict(
+            loss=outputs.loss,
+        )
+        
+    def training_step_end(self, outputs):
+        pass
+
+    def validation_step_end(self, outputs):
+        self.log(
+            'valid_wer', 
+            self.metric['valid'].compute(),
+            on_step=True,
+            on_epoch=True,
+            batch_size=self.hparams.batch_size,
+        )
+        self.metric['valid'].reset()
+        pass
+        
+        
+    def train_dataloader(self):
+        return DataLoader(
+            dataset=self.trainset,
+            batch_size=self.hparams.batch_size,
+            shuffle=True,
+            # num_workers
+            collate_fn=self.collate_fn,
+        )
+        
+    def val_dataloader(self):
+        return DataLoader(
+            dataset=self.valset,
+            batch_size=self.hparams.batch_size,
+            shuffle=False,
+            # num_workers
+            collate_fn=self.collate_fn,
+        )
+        
+          
+        
+        
+def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn):
     # ~~~ training args ~~~ #
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     training_args_dict = dict(
@@ -191,9 +338,39 @@ def main():
             "keys_to_ignore_at_inference", []),
     )
 
-if __name__ == "__main__": main()
+if __name__ == "__main__": 
+    args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn = main()
+    # main2()
+    plmodel = PLModel(
+        model=model,
+        datasets=(train_dataset, dev_dataset),
+        tokenizer=tokenizer,
+        metric=WordErrorRate,
+        hparams=dict(
+            lr=args.lr,
+            batch_size=args.batch_size,  # train val different? FIXME
+        ),
+        collate_fn=collate_fn,
+    )
+    trainer = pl.Trainer(
+        gpus=-1,
+        # logger=wandb_logger if LOG_WANDB else True,
+        log_every_n_steps=10,
+        # val_check_interval=0.05,
+        # val_check_interval=0.05,
+        check_val_every_n_epoch=2,
+        default_root_dir="exp/pl_trainer",
+        max_epochs=args.epochs,
+        # strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
 
-# TODO: compute_metrics or PL!
+    )
+    trainer.fit(
+        plmodel,
+        # ckpt=
+    )  # dataloader here? <-- FIXME
+    
+
+# TODO: compute_metrics or PL! --> FIXME: metric, compute_on_step?
 # TODO: from scratch --> yaml config (一個 config 一個 setting)
 # TODO: AE pretraining
 # TODO: Speech translation
