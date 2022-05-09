@@ -183,7 +183,7 @@ def get_args():
     parser.add_argument("--test_split", type=str, default=None)
     parser.add_argument("--pretrained_name", type=str, default='facebook/bart-base')
     parser.add_argument("--output_dir", type=str, default=(
-        EXP_PREFIX / "hf_ckpts/basic_trial1" / Path(strftime(now(), r'%Y%m%d_%H%M%S'))))
+        EXP_PREFIX / "pl_trainer/basic_trial2" / Path(strftime(now(), r'%Y%m%d_%H%M%S'))))
         
     # @@@ exp setups!
     parser.add_argument("--run_name", type=str, default=None)

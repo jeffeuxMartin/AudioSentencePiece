@@ -29,7 +29,7 @@ from transformers.models.auto.configuration_auto import AutoConfig
 from transformers import get_linear_schedule_with_warmup
 
 import pytorch_lightning as pl
-# from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger
 # from pytorch_lightning.strategies.ddp import DDPStrategy
 from torchmetrics import WordErrorRate
 
@@ -169,7 +169,11 @@ class PLModel(pl.LightningModule):
 
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=self.hparams.get("warmup_steps", 500),
+            num_warmup_steps=self.hparams.get(
+                "warmup_steps", 
+                # 500,
+                self.hparams.get("warmup_ratio", 0.1) * self.total_steps,
+            ),
             num_training_steps=self.total_steps,
         )
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
@@ -205,8 +209,18 @@ class PLModel(pl.LightningModule):
             num_beams=1,
             max_length=args.generation_max_length,
         )
+        
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
         self.metric['valid'].update(ar_texts, wbatch.labels)
+        
+        if batch_idx % 2 == 2 - 1:
+            print('\033[01;36m', end='')
+            print(ar_texts[0])
+            print('\033[0m', end='')
+            print('\033[01;32m', end='')
+            print(wbatch.labels[0])
+            print('\033[0m', end='')
+            print()
         
         
         
@@ -338,8 +352,25 @@ def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_
             "keys_to_ignore_at_inference", []),
     )
 
+# TODO: save_total_limit=args.save_total_limit,
+# TODO: eval_batch?
+###   save_steps=args.save_steps,
+###
+###
+###""
+### ~~~ trainer ~~~ #
+###compute_metrics_fn = task_config.metric_func(
+###   tokenizer,
+###   **(dict(metric_batch=args.metric_batch, 
+###           verbose_batch=args.verbose_batch)
+###       if task_config.seq2seq else {}))
+###
+
 if __name__ == "__main__": 
     args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn = main()
+    
+
+
     # main2()
     plmodel = PLModel(
         model=model,
@@ -349,19 +380,53 @@ if __name__ == "__main__":
         hparams=dict(
             lr=args.lr,
             batch_size=args.batch_size,  # train val different? FIXME
+            warmup_ratio=args.warmup_ratio,
         ),
         collate_fn=collate_fn,
     )
+    
+
+
+
+    if "check data":
+        print()
+        print('Checking Trainloader...')
+        for i in plmodel.train_dataloader():
+            print(i)
+            break
+        if args.dev_split != 'none':
+            print()
+            print('Checking Evalloader...')
+            for i in plmodel.val_dataloader():
+                print(i)
+                break
+
+
+
+
+
+
+
+
+
+
+    assert not args.wandb
     trainer = pl.Trainer(
         gpus=-1,
-        # logger=wandb_logger if LOG_WANDB else True,
-        log_every_n_steps=10,
+        logger=WandbLogger(args.run_name) if args.wandb else True,
+        log_every_n_steps=args.logging_steps,
         # val_check_interval=0.05,
         # val_check_interval=0.05,
-        check_val_every_n_epoch=2,
-        default_root_dir="exp/pl_trainer",
+        check_val_every_n_epoch=5,
+        default_root_dir=args.output_dir,
         max_epochs=args.epochs,
         # strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
+        
+        # weights_save_path=
+        enable_progress_bar=True,
+        # enable_checkpointing=
+        
+        accumulate_grad_batches=args.gradient_accumulation_steps,
 
     )
     trainer.fit(
@@ -377,3 +442,4 @@ if __name__ == "__main__":
 # TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)
 # FIXME: ddp repeat 3 times?
 # NOT TODO: other losses? every batch
+# TODO: num_beams
