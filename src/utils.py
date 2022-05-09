@@ -238,7 +238,7 @@ def get_args():
 
     default_run_name = (
         # f"lr = {args.lr}, bsz = {args.batch_size} ({batch_scaled_up} scaled_up)"
-        f"lr = {args.lr}, bsz = {args.batch_size} "
+        f"lr = {args.lr}, bsz = {args.batch_size} * {args.gradient_accumulation_steps} acc * {torch.cuda.device_count()} gpus"
         + (f"(evalbsz = {args.eval_batch_size})" if args.eval_batch_size is not None else "")
         + f", {args.epochs} epochs"
         
