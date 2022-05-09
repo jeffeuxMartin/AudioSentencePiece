@@ -201,6 +201,8 @@ def get_args():
     parser.add_argument("-e", "--epochs", type=int, default=10)
     parser.add_argument("-b", "--batch_size", type=int, default=6)
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
+    parser.add_argument("--gradient_accumulation_steps", "--gacc", type=int, default=1)
+    parser.add_argument("--resume_from_checkpoint", "--ckpt", type=str, default=None)
         
     # @@@ self-tuned
     parser.add_argument("-B", "--eval_batch_size", type=int, default=None)
@@ -276,5 +278,7 @@ def get_args():
     + "\033[0m")
     
     print()
+    if args.resume_from_checkpoint is not None:
+        print('output_dir should be checked!')
 
     return args

@@ -110,6 +110,7 @@ def main():
         save_total_limit=args.save_total_limit,
         run_name=args.run_name,
         output_dir=args.output_dir,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
         
         do_train=True,
         logging_steps=args.logging_steps,
@@ -176,6 +177,7 @@ def main():
                 break
 
     trainer.train(
+        resume_from_checkpoint=args.resume_from_checkpoint,
         ignore_keys_for_eval=[  # 也可以直接寫進 config!
             'encoder_last_hidden_state', 
             'encoder_last_hidden_out_attention_mask',
@@ -198,3 +200,6 @@ if __name__ == "__main__": main()
 # TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)
 # FIXME: ddp repeat 3 times?
 # NOT TODO: other losses? every batch
+from transformers.trainer import Trainer
+from transformers.training_args import TrainingArguments
+Trainer

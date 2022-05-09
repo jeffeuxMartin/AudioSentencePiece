@@ -66,4 +66,3 @@ hrun $SPOT \
 # parser.add_argument("-b", "--batch_size", type=int, default=6)
 # parser.add_argument("-lr", "--lr", type=float, default=2e-4)
 # parser.add_argument("--eval_accumulation_steps", type=int, default=25)
-    
