@@ -129,8 +129,8 @@ class PLModel(pl.LightningModule):
         self.trainset, self.valset = datasets
         
         self.metric = dict(
-            train=metric().to(self.model.device),
-            valid=metric().to(self.model.device),
+            train=metric(),
+            valid=metric(),
         )
         self.collate_fn = collate_fn
         
@@ -207,6 +207,7 @@ class PLModel(pl.LightningModule):
                     ar_preds, skip_special_tokens=True)
                 ar_labels = self.tokenizer.batch_decode(
                     batch['labels'], skip_special_tokens=True)
+                self.metric['train'] = self.metric['train'].to(ar_preds.device)
                 self.metric['train'].update(ar_texts, ar_labels)
                 predicted = True
     
@@ -237,6 +238,7 @@ class PLModel(pl.LightningModule):
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
         ar_labels = self.tokenizer.batch_decode(
             batch['labels'], skip_special_tokens=True)
+        self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
         self.metric['valid'].update(ar_texts, ar_labels)
         
         if self.hparams.verbose_batch > 0:
