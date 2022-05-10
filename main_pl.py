@@ -477,7 +477,7 @@ if __name__ == "__main__":
         gpus=-1,
         logger=WandbLogger(args.run_name, project=args.proj_name) if args.wandb else True,
         log_every_n_steps=args.logging_steps,
-        val_check_interval=0.1,
+        val_check_interval=0.02,
         # check_val_every_n_epoch=5,
         default_root_dir=args.output_dir,
         max_epochs=args.epochs,
