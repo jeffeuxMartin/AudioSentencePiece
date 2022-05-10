@@ -26,7 +26,7 @@ import sys
 from datetime import datetime
 strftime, now = datetime.strftime, datetime.now
 
-import numyp as np
+import numpy as np
 
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
