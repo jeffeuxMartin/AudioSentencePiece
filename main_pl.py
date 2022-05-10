@@ -414,7 +414,7 @@ if __name__ == "__main__":
     )
     trainer.fit(
         plmodel,
-        ckpt=args.resume_from_checkpoint,
+        ckpt_path=args.resume_from_checkpoint,
     )  # dataloader here? <-- FIXME
     
 
