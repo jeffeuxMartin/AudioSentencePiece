@@ -9,14 +9,6 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-
-@dataclass
-class WrappedDataclass:
-    data: object
-    gendata: object
-    labels: object = None
-
-
 class MyUnitDataset(Dataset):
     def __init__(self, units, texts=None, wordlen=None, lower=False): 
         self.units = units
@@ -116,17 +108,7 @@ def Data_collate_fn(unit_tokenizer, text_tokenizer):
             output_dict["word_length_tensor"] = torch.tensor(
                 np.array(wordlens, dtype=int))
         
-        genoutput_dict = {
-            k: output_dict[k]
-            for k in output_dict
-            if k != 'labels'
-        }
-
-        batch_data = WrappedDataclass(
-            output_dict, 
-            genoutput_dict,
-            labels)
-        return batch_data
+        return output_dict
         
     return collate_fn
 

@@ -181,8 +181,7 @@ class PLModel(pl.LightningModule):
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
     
-    def training_step(self, wbatch, batch_idx):
-        batch = wbatch.data
+    def training_step(self, batch, batch_idx):
         outputs = self(batch)
         assert self.training
         self.log(f"train_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
@@ -195,14 +194,20 @@ class PLModel(pl.LightningModule):
         if self.hparams.eval_in_train and self.hparams.metric_batch > 0:
             if batch_idx % self.hparams.metric_batch == 0:
                 ar_preds = self.generate(
-                    **wbatch.gendata, 
+                    **{
+                        k: batch[k]
+                        for k in batch
+                        if k != 'labels'
+                    }, 
                     num_beams=self.hparams.num_beams,
                     max_length=self.hparams.generation_max_length,
                 )
                 
                 ar_texts = self.tokenizer.batch_decode(
                     ar_preds, skip_special_tokens=True)
-                self.metric['train'].update(ar_texts, wbatch.labels)
+                ar_labels = self.tokenizer.batch_decode(
+                    batch['labels'], skip_special_tokens=True)
+                self.metric['train'].update(ar_texts, ar_labels)
                 predicted = True
     
         # ~~~ BUILD: demo dataframe ~~~ #
@@ -213,21 +218,26 @@ class PLModel(pl.LightningModule):
             # target=groundtruth_texts,
         )
 
-    def validation_step(self, wbatch, batch_idx):
-        batch = wbatch.data
+    def validation_step(self, batch, batch_idx):
         outputs = self(batch)
         assert not self.training
 
         self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
 
         ar_preds = self.generate(
-            **wbatch.gendata, 
+            **{
+                k: batch[k]
+                for k in batch
+                if k != 'labels'
+            }, 
             num_beams=self.hparams.num_beams,
             max_length=self.hparams.generation_max_length,
         )
         
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
-        self.metric['valid'].update(ar_texts, wbatch.labels)
+        ar_labels = self.tokenizer.batch_decode(
+            batch['labels'], skip_special_tokens=True)
+        self.metric['valid'].update(ar_texts, ar_labels)
         
         if self.hparams.verbose_batch > 0:
             if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
