@@ -159,12 +159,12 @@ class PLModel(pl.LightningModule):
 
         # Calculate total steps
         tb_size = self.hparams.batch_size * max(1, self.trainer.num_devices)
-        ab_size = self.trainer.accumulate_grad_batches * float(self.trainer.max_epochs)
+        ab_size = self.trainer.accumulate_grad_batches / float(self.trainer.max_epochs)
         self.total_steps = (len(train_loader.dataset) // tb_size) // ab_size
-        print(f"{tb_size = }")
-        print(f"{ab_size = }")
-        print(f"{self.total_steps = }")
-        print(f"{len(train_loader.dataset) = }")
+        # print(f"{tb_size = }")
+        # print(f"{ab_size = }")
+        # print(f"{self.total_steps = }")
+        # print(f"{len(train_loader.dataset) = }")
 
     def configure_optimizers(self):
         """Prepare optimizer and schedule (linear warmup and decay)"""
@@ -172,7 +172,7 @@ class PLModel(pl.LightningModule):
         optimizer_grouped_parameters = [
             {
                 "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.hparams.get("weight_decay", 0.1),
+                "weight_decay": min(self.hparams.get("weight_decay", 0.1), self.hparams["lr"],),
             },
             {
                 "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
@@ -188,7 +188,7 @@ class PLModel(pl.LightningModule):
             optimizer,
             num_warmup_steps=self.hparams.get(
                 "warmup_steps", 
-                self.hparams.get("warmup_ratio", 0.1) * self.total_steps,
+                self.hparams.get("warmup_ratio", 0.1) * self.total_steps // self.trainer.max_epochs,
             ),
             num_training_steps=self.total_steps,
         )
