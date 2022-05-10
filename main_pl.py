@@ -439,6 +439,8 @@ if __name__ == "__main__":
 
 
     checkpoint_callback = ModelCheckpoint(
+        # ref.: https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
+        # ref.: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
         monitor="val_loss",
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
@@ -478,6 +480,7 @@ if __name__ == "__main__":
 # NOT TODO: other losses? every batch
 """
 0. check metric! --> FIXME: metric, compute_on_step?
+    # https://torchmetrics.readthedocs.io/en/stable/pages/lightning.html
 1. eval_accumulation_steps=args.eval_accumulation_steps,
 1. callbacks=[LogCallback] if args.callback else [],
 1. gen_len
