@@ -3,8 +3,6 @@
 # region         === importations ===         NOIGER #
 import logging
 
-from src.metrics import postprocess_text
-
 FORMAT = '\033[01;31m%(asctime)s\033[0m %(message)s'
 logging.basicConfig(format=FORMAT)
 logging.warning('== START ==')
@@ -35,7 +33,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.callbacks import ModelCheckpoint
-from torchmetrics import WordErrorRate, SacreBLEUScore
+from torchmetrics import WordErrorRate
 
 # --- self written --- #
 from src.models import SentBartForConditionalGeneration
@@ -120,7 +118,7 @@ def main():
 # model, datasets, tokenizer, metric, hparams, collate_fn,
 class PLModel(pl.LightningModule):
     def __init__(self,
-        model, datasets, tokenizer, metric, hparams, collate_fn, task
+        model, datasets, tokenizer, metric, hparams, collate_fn,
     ):
         super().__init__()
         self.hparams.update(hparams)
@@ -135,7 +133,6 @@ class PLModel(pl.LightningModule):
             valid=metric(),
         )
         self.collate_fn = collate_fn
-        self.task = task
         
     def forward(self, inputs):
         return self.model(**inputs)
@@ -210,7 +207,6 @@ class PLModel(pl.LightningModule):
                     ar_preds, skip_special_tokens=True)
                 ar_labels = self.tokenizer.batch_decode(
                     batch['labels'], skip_special_tokens=True)
-                ar_texts, ar_labels = postprocess_text(ar_texts, ar_labels, self.task == "ST")
                 self.metric['train'] = self.metric['train'].to(ar_preds.device)
                 self.metric['train'].update(ar_texts, ar_labels)
                 predicted = True
@@ -228,9 +224,6 @@ class PLModel(pl.LightningModule):
         assert not self.training
 
         self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
-        loss = outputs.loss.item()
-        del outputs
-        
 
         ar_preds = self.generate(
             **{
@@ -245,7 +238,6 @@ class PLModel(pl.LightningModule):
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
         ar_labels = self.tokenizer.batch_decode(
             batch['labels'], skip_special_tokens=True)
-        ar_texts, ar_labels = postprocess_text(ar_texts, ar_labels, self.task == "ST")
         self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
         self.metric['valid'].update(ar_texts, ar_labels)
         
@@ -263,7 +255,7 @@ class PLModel(pl.LightningModule):
         
         
         return dict(
-            loss=loss,
+            loss=outputs.loss,
         )
         
     def training_step_end(self, outputs):
@@ -415,15 +407,11 @@ if __name__ == "__main__":
 
 
     # main2()
-    if args.task == 'ASR':
-        metric_cls = WordErrorRate
-    elif args.task == "ST":
-        metric_cls = SacreBLEUScore
     plmodel = PLModel(
         model=model,
         datasets=(train_dataset, dev_dataset),
         tokenizer=tokenizer,
-        metric=metric_cls,
+        metric=WordErrorRate,
         hparams=dict(
             lr=args.lr,
             batch_size=args.batch_size,  # train val different? FIXME
@@ -436,7 +424,6 @@ if __name__ == "__main__":
             num_beams=args.num_beams,
         ),
         collate_fn=collate_fn,
-        task=args.task,
     )
     
 
@@ -466,7 +453,7 @@ if __name__ == "__main__":
     checkpoint_callback = ModelCheckpoint(
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
-        monitor="valid_wer",
+        monitor="val_loss",
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,
