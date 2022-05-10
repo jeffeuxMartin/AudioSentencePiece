@@ -323,93 +323,93 @@ class PLModel(pl.LightningModule):
           
         
         
-def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn):
-    # ~~~ training args ~~~ #
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    training_args_dict = dict(
-        save_total_limit=args.save_total_limit,
-        run_name=args.run_name,
-        output_dir=args.output_dir,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
+# def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn):
+#     # ~~~ training args ~~~ #
+#     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+#     training_args_dict = dict(
+#         save_total_limit=args.save_total_limit,
+#         run_name=args.run_name,
+#         output_dir=args.output_dir,
+#         gradient_accumulation_steps=args.gradient_accumulation_steps,
         
-        do_train=True,
-        logging_steps=args.logging_steps,
-        per_device_train_batch_size=args.batch_size,
+#         do_train=True,
+#         logging_steps=args.logging_steps,
+#         per_device_train_batch_size=args.batch_size,
         
-        do_eval=True,
-        eval_steps=args.eval_steps,
-        evaluation_strategy="steps",
-        eval_accumulation_steps=args.eval_accumulation_steps,
-        per_device_eval_batch_size=args.eval_batch_size,
+#         do_eval=True,
+#         eval_steps=args.eval_steps,
+#         evaluation_strategy="steps",
+#         eval_accumulation_steps=args.eval_accumulation_steps,
+#         per_device_eval_batch_size=args.eval_batch_size,
         
-        learning_rate=args.lr,
-        warmup_ratio=args.warmup_ratio,
+#         learning_rate=args.lr,
+#         warmup_ratio=args.warmup_ratio,
         
-        report_to='wandb' if args.wandb else 'none',
+#         report_to='wandb' if args.wandb else 'none',
         
-        num_train_epochs=args.epochs,
-        save_steps=args.save_steps,
-    )
+#         num_train_epochs=args.epochs,
+#         save_steps=args.save_steps,
+#     )
     
-    if task_config.seq2seq:
-        training_args_dict["predict_with_generate"] = True
-        training_args_dict["generation_max_length"] = args.generation_max_length
+#     if task_config.seq2seq:
+#         training_args_dict["predict_with_generate"] = True
+#         training_args_dict["generation_max_length"] = args.generation_max_length
     
-    # ~~~ trainer ~~~ #
-    compute_metrics_fn = task_config.metric_func(
-        tokenizer,
-        **(dict(metric_batch=args.metric_batch, 
-                verbose_batch=args.verbose_batch)
-            if task_config.seq2seq else {}))
+#     # ~~~ trainer ~~~ #
+#     compute_metrics_fn = task_config.metric_func(
+#         tokenizer,
+#         **(dict(metric_batch=args.metric_batch, 
+#                 verbose_batch=args.verbose_batch)
+#             if task_config.seq2seq else {}))
 
-    trainer_args = dict(
-        model=model,
-        args=task_config.training_arg_class(**training_args_dict),
+#     trainer_args = dict(
+#         model=model,
+#         args=task_config.training_arg_class(**training_args_dict),
         
-        # optimizers=optimizers,
-        train_dataset=(
-            train_dataset
-            # dummy_train_dataset
-        ),
-        eval_dataset=(
-            dev_dataset
-            # dummy_dev_dataset
-        ),
-        data_collator=collate_fn,
+#         # optimizers=optimizers,
+#         train_dataset=(
+#             train_dataset
+#             # dummy_train_dataset
+#         ),
+#         eval_dataset=(
+#             dev_dataset
+#             # dummy_dev_dataset
+#         ),
+#         data_collator=collate_fn,
         
-        compute_metrics=compute_metrics_fn,
-        callbacks=[LogCallback] if args.callback else [],
-    )
+#         compute_metrics=compute_metrics_fn,
+#         callbacks=[LogCallback] if args.callback else [],
+#     )
 
-    trainer = task_config.trainer_class(**trainer_args)
+#     trainer = task_config.trainer_class(**trainer_args)
     
-    if "check data":
-        print()
-        print('Checking Trainloader...')
-        for i in trainer.get_train_dataloader():
-            print(i)
-            break
-        if args.dev_split != 'none':
-            print()
-            print('Checking Evalloader...')
-            for i in trainer.get_eval_dataloader():
-                print(i)
-                break
+#     if "check data":
+#         print()
+#         print('Checking Trainloader...')
+#         for i in trainer.get_train_dataloader():
+#             print(i)
+#             break
+#         if args.dev_split != 'none':
+#             print()
+#             print('Checking Evalloader...')
+#             for i in trainer.get_eval_dataloader():
+#                 print(i)
+#                 break
 
-    trainer.train(
-        resume_from_checkpoint=args.resume_from_checkpoint,
-        ignore_keys_for_eval=[  # 也可以直接寫進 config!
-            'encoder_last_hidden_state', 
-            'encoder_last_hidden_out_attention_mask',
-            'encoder_length_loss',
-            'encoder_pred_word_lengths',
-            'encoder_hidden_states',
-            'encoder_attentions',
-            'masked_lm_loss',    # store in other formats!
-            'real_length_loss',  # store in other formats!
-        ] + getattr(model.config, 
-            "keys_to_ignore_at_inference", []),
-    )
+#     trainer.train(
+#         resume_from_checkpoint=args.resume_from_checkpoint,
+#         ignore_keys_for_eval=[  # 也可以直接寫進 config!
+#             'encoder_last_hidden_state', 
+#             'encoder_last_hidden_out_attention_mask',
+#             'encoder_length_loss',
+#             'encoder_pred_word_lengths',
+#             'encoder_hidden_states',
+#             'encoder_attentions',
+#             'masked_lm_loss',    # store in other formats!
+#             'real_length_loss',  # store in other formats!
+#         ] + getattr(model.config, 
+#             "keys_to_ignore_at_inference", []),
+#     )
 
 
 if __name__ == "__main__": 
@@ -470,7 +470,6 @@ if __name__ == "__main__":
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,
-        mode="min",  # wer
     )
 
     trainer = pl.Trainer(
