@@ -31,6 +31,7 @@ from transformers import get_linear_schedule_with_warmup
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 # from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.callbacks import ModelCheckpoint
 from torchmetrics import WordErrorRate
 
 # --- self written --- #
@@ -188,12 +189,26 @@ class PLModel(pl.LightningModule):
         # predicted_ids = outputs.logits.argmax(-1)
         # predicted_texts = self.tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
         # groundtruth_texts = batch["texts"]
+        # if batch_idx % 10 == 0:
+        predicted = False
+        if self.hparams.eval_in_train and self.hparams.metric_batch > 0:
+            if batch_idx % self.hparams.metric_batch == 0:
+                ar_preds = self.generate(
+                    **wbatch.gendata, 
+                    num_beams=self.hparams.num_beams,
+                    max_length=self.hparams.generation_max_length,
+                )
+                
+                ar_texts = self.tokenizer.batch_decode(
+                    ar_preds, skip_special_tokens=True)
+                self.metric['train'].update(ar_texts, wbatch.labels)
+                predicted = True
     
         # ~~~ BUILD: demo dataframe ~~~ #
         
         return dict(
             loss=outputs.loss,
-            # preds=predicted_texts,
+            predicted=predicted,
             # target=groundtruth_texts,
         )
 
@@ -206,21 +221,23 @@ class PLModel(pl.LightningModule):
 
         ar_preds = self.generate(
             **wbatch.gendata, 
-            num_beams=1,
-            max_length=args.generation_max_length,
+            num_beams=self.hparams.num_beams,
+            max_length=self.hparams.generation_max_length,
         )
         
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
         self.metric['valid'].update(ar_texts, wbatch.labels)
         
-        if batch_idx % 2 == 2 - 1:
-            print('\033[01;36m', end='')
-            print(ar_texts[0])
-            print('\033[0m', end='')
-            print('\033[01;32m', end='')
-            print(wbatch.labels[0])
-            print('\033[0m', end='')
-            print()
+        if self.hparams.verbose_batch > 0:
+            if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
+                print()
+                print('Pred: \033[01;35m', end='')
+                print(ar_texts[0])
+                print('\033[0m', end='')
+                print('GrTr: \033[01;32m', end='')
+                print(wbatch.labels[0])
+                print('\033[0m', end='')
+                print()
         
         
         
@@ -229,6 +246,19 @@ class PLModel(pl.LightningModule):
         )
         
     def training_step_end(self, outputs):
+        if getattr(outputs, "predicted", False):
+            self.log(
+                'train_wer', 
+                self.metric['train'].compute(),
+                on_step=True,
+                on_epoch=False,
+                
+                batch_size=self.hparams.batch_size,
+                prog_bar=True,
+            )
+    def training_epoch_end(self, outputs):
+        if getattr(outputs, "predicted", False):
+            self.metric['train'].reset()
         pass
 
     def validation_step_end(self, outputs):
@@ -237,8 +267,11 @@ class PLModel(pl.LightningModule):
             self.metric['valid'].compute(),
             on_step=True,
             on_epoch=True,
+            
             batch_size=self.hparams.batch_size,
+            prog_bar=True,
         )
+    def validation_epoch_end(self, outputs):
         self.metric['valid'].reset()
         pass
         
@@ -248,16 +281,18 @@ class PLModel(pl.LightningModule):
             dataset=self.trainset,
             batch_size=self.hparams.batch_size,
             shuffle=True,
-            # num_workers
+            num_workers=self.trainset.num_workers,
             collate_fn=self.collate_fn,
         )
         
     def val_dataloader(self):
         return DataLoader(
             dataset=self.valset,
-            batch_size=self.hparams.batch_size,
+            batch_size=(getattr(self.hparams, 
+                        "eval_batch_size", None
+                       ) or self.hparams.batch_size),
             shuffle=False,
-            # num_workers
+            num_workers=self.valset.num_workers,
             collate_fn=self.collate_fn,
         )
         
@@ -352,19 +387,6 @@ def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_
             "keys_to_ignore_at_inference", []),
     )
 
-# TODO: save_total_limit=args.save_total_limit,
-# TODO: eval_batch?
-###   save_steps=args.save_steps,
-###
-###
-###""
-### ~~~ trainer ~~~ #
-###compute_metrics_fn = task_config.metric_func(
-###   tokenizer,
-###   **(dict(metric_batch=args.metric_batch, 
-###           verbose_batch=args.verbose_batch)
-###       if task_config.seq2seq else {}))
-###
 
 if __name__ == "__main__": 
     args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn = main()
@@ -381,6 +403,12 @@ if __name__ == "__main__":
             lr=args.lr,
             batch_size=args.batch_size,  # train val different? FIXME
             warmup_ratio=args.warmup_ratio,
+            eval_batch_size=args.eval_batch_size,
+            generation_max_length=args.generation_max_length,
+            verbose_batch=args.verbose_batch,
+            metric_batch=args.metric_batch,
+            eval_in_train=args.eval_in_train,
+            num_beams=args.num_beams,
         ),
         collate_fn=collate_fn,
     )
@@ -409,15 +437,20 @@ if __name__ == "__main__":
 
 
 
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss",
+        save_top_k=args.save_total_limit,
+        every_n_train_steps=args.save_steps,
+        save_on_train_epoch_end=True,
+        mode="min",  # wer
+    )
 
-    assert not args.wandb
     trainer = pl.Trainer(
         gpus=-1,
-        logger=WandbLogger(args.run_name) if args.wandb else True,
+        logger=WandbLogger(args.run_name, project=args.proj_name) if args.wandb else True,
         log_every_n_steps=args.logging_steps,
-        # val_check_interval=0.05,
-        # val_check_interval=0.05,
-        check_val_every_n_epoch=5,
+        val_check_interval=0.05,
+        # check_val_every_n_epoch=5,
         default_root_dir=args.output_dir,
         max_epochs=args.epochs,
         # strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
@@ -427,6 +460,7 @@ if __name__ == "__main__":
         # enable_checkpointing=
         
         accumulate_grad_batches=args.gradient_accumulation_steps,
+        callbacks=[checkpoint_callback],
 
     )
     trainer.fit(
@@ -435,11 +469,15 @@ if __name__ == "__main__":
     )  # dataloader here? <-- FIXME
     
 
-# TODO: compute_metrics or PL! --> FIXME: metric, compute_on_step?
 # TODO: from scratch --> yaml config (一個 config 一個 setting)
 # TODO: AE pretraining
 # TODO: Speech translation
 # TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)
 # FIXME: ddp repeat 3 times?
 # NOT TODO: other losses? every batch
-# TODO: num_beams
+"""
+0. check metric! --> FIXME: metric, compute_on_step?
+1. eval_accumulation_steps=args.eval_accumulation_steps,
+1. callbacks=[LogCallback] if args.callback else [],
+1. gen_len
+"""

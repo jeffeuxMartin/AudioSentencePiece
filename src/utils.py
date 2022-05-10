@@ -210,16 +210,18 @@ def get_args():
     parser.add_argument("--nowandb", action='store_false', dest='wandb'); parser.set_defaults(wandb=True)
     parser.add_argument("--logging_steps", type=int, default=10)
     parser.add_argument("--save_total_limit", type=int, default=3)
+    parser.add_argument("--num_beams", type=int, default=2)
     # ~~~ not important
     parser.add_argument("--eval_accumulation_steps", type=int, default=25)
     parser.add_argument("--save_steps", type=int, default=500)
     parser.add_argument("--metric_batch", type=int, default=20)
-    parser.add_argument("--verbose_batch", type=int, default=50)
+    parser.add_argument("--verbose_batch", type=int, default=5)
     parser.add_argument("--nocallback", action='store_false', dest='callback'); parser.set_defaults(callback=True)
+    parser.add_argument("--noeval_in_train", action='store_false', dest='eval_in_train'); parser.set_defaults(eval_in_train=True)
 
     # @@@@@@@
     parser.add_argument("--warmup_ratio", type=float, default=0.1)
-    parser.add_argument("--generation_max_length", type=int, default=1024)
+    parser.add_argument("--generation_max_length", type=int, default=256)
 
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--vram", type=float, default=10)

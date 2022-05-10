@@ -4,3 +4,4 @@ src/__pycache__/*.pyc
 src/__pycache__/newmodels.cpython-38.pyc
 src/__pycache__/build_tok.cpython-38.pyc
 src/__pycache__/datasets.cpython-38.pyc
+main_pl.py

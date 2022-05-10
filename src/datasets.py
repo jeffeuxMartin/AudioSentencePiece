@@ -1,4 +1,5 @@
 #!/usr/bin/env python3  # ~~~ VERIFIED ~~~ #
+import os
 import logging
 from pathlib import Path
 from dataclasses import dataclass
@@ -27,6 +28,9 @@ class MyUnitDataset(Dataset):
         if wordlen is not None:
             assert len(wordlen) == len(self.units)
         self.wordlen = wordlen
+        
+        # ref.: https://stackoverflow.com/questions/1006289/how-to-find-out-the-number-of-cpus-using-python
+        self.num_workers = len(os.sched_getaffinity(0))
     
     def __len__(self): 
         return len(self.units)
