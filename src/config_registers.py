@@ -40,7 +40,7 @@ class MetricClass:
     metric: object = None
     metricname: str = ""
     postprocess_fn: Callable = None
-    metric_mode = ''
+    metric_mode: str = ''
     
 asrmetric = MetricClass(WordErrorRate, 'wer', partial(postprocess_text, translation=False), 'min')
 stmetric = MetricClass(SacreBLEUScore, 'bleu', partial(postprocess_text, translation=True), 'max')
