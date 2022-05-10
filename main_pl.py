@@ -290,6 +290,12 @@ class PLModel(pl.LightningModule):
         )
 
     def validation_step_end(self, outputs):
+        """
+        0. check metric! --> FIXME: metric, compute_on_step?
+            # https://torchmetrics.readthedocs.io/en/stable/pages/lightning.html
+        FIXME: eval_accum? now using metric_batch!
+        """
+
         self.log("gen_len", round(sum(outputs.gen_len) / len(outputs.gen_len), 4),
             batch_size=self.hparams.eval_batch_size,
         )
@@ -316,16 +322,17 @@ class PLModel(pl.LightningModule):
         )
         
     def val_dataloader(self):
-        self.hparams.update(dict(eval_batch_size=getattr(self.hparams, 
-                        "eval_batch_size", None
-                       ) or self.hparams.batch_size))
-        return DataLoader(
-            dataset=self.valset,
-            batch_size=self.hparams.eval_batch_size,
-            shuffle=False,
-            num_workers=self.valset.num_workers,
-            collate_fn=self.collate_fn,
-        )
+        if self.valset is not None:
+            self.hparams.update(dict(eval_batch_size=getattr(self.hparams, 
+                            "eval_batch_size", None
+                        ) or self.hparams.batch_size))
+            return DataLoader(
+                dataset=self.valset,
+                batch_size=self.hparams.eval_batch_size,
+                shuffle=False,
+                num_workers=self.valset.num_workers,
+                collate_fn=self.collate_fn,
+            )
         
           
         
@@ -417,11 +424,3 @@ if __name__ == "__main__":
 # TODO: return Self WORDLEN pred output! (penalized? 叫他自己用 sum of alphas 當成 wordlen)
 # FIXME: ddp repeat 3 times?
 # NOT TODO: other losses? every batch
-"""
-0. check metric! --> FIXME: metric, compute_on_step?
-    # https://torchmetrics.readthedocs.io/en/stable/pages/lightning.html
-1. eval_accumulation_steps=args.eval_accumulation_steps,
-1. callbacks=[LogCallback] if args.callback else [],
-1. gen_len
-"""
-# if args.dev_split != 'none':
