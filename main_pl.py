@@ -159,7 +159,7 @@ class PLModel(pl.LightningModule):
 
         # Calculate total steps
         tb_size = self.hparams.batch_size * max(1, self.trainer.num_devices)
-        ab_size = self.trainer.accumulate_grad_batches * float(self.trainer.max_epochs)
+        ab_size = self.trainer.accumulate_grad_batches / float(self.trainer.max_epochs)  # FIX myself?
         self.total_steps = (len(train_loader.dataset) // tb_size) // ab_size
 
     def configure_optimizers(self):
@@ -184,7 +184,6 @@ class PLModel(pl.LightningModule):
             optimizer,
             num_warmup_steps=self.hparams.get(
                 "warmup_steps", 
-                # 500,
                 self.hparams.get("warmup_ratio", 0.1) * self.total_steps,
             ),
             num_training_steps=self.total_steps,
