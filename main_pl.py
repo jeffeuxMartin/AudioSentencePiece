@@ -129,8 +129,8 @@ class PLModel(pl.LightningModule):
         self.trainset, self.valset = datasets
         
         self.metric = dict(
-            train=metric(),
-            valid=metric(),
+            train=metric().to(self.model.device),
+            valid=metric().to(self.model.device),
         )
         self.collate_fn = collate_fn
         
@@ -273,7 +273,6 @@ class PLModel(pl.LightningModule):
         pass
 
     def validation_step_end(self, outputs):
-        breakpoint()
         self.log(
             'valid_wer', 
             self.metric['valid'].compute(),
