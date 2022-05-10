@@ -30,7 +30,7 @@ from transformers import get_linear_schedule_with_warmup
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
-# from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torchmetrics import WordErrorRate
 
@@ -453,7 +453,7 @@ if __name__ == "__main__":
         # check_val_every_n_epoch=5,
         default_root_dir=args.output_dir,
         max_epochs=args.epochs,
-        # strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
+        strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
         
         # weights_save_path=
         enable_progress_bar=True,
