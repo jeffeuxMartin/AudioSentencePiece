@@ -38,6 +38,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import LearningRateMonitor
 from torchmetrics import WordErrorRate, SacreBLEUScore
 
 # --- self written --- #
@@ -375,6 +376,7 @@ if __name__ == "__main__":
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,
     )
+    lr_monitor = LearningRateMonitor(logging_interval='step')
 
     trainer = pl.Trainer(
         gpus=-1,
@@ -386,7 +388,7 @@ if __name__ == "__main__":
         strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
         enable_progress_bar=True,
         accumulate_grad_batches=args.gradient_accumulation_steps,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, lr_monitor],
     )
     trainer.fit(
         plmodel,
