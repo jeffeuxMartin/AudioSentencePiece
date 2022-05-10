@@ -219,6 +219,7 @@ class PLModel(pl.LightningModule):
         )
 
     def validation_step(self, batch, batch_idx):
+        breakpoint()
         outputs = self(batch)
         assert not self.training
 
@@ -246,7 +247,7 @@ class PLModel(pl.LightningModule):
                 print(ar_texts[0])
                 print('\033[0m', end='')
                 print('GrTr: \033[01;32m', end='')
-                print(wbatch.labels[0])
+                print(ar_labels[0])
                 print('\033[0m', end='')
                 print()
         
