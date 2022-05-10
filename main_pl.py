@@ -221,6 +221,7 @@ class PLModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         breakpoint()
         outputs = self(batch)
+        breakpoint()
         assert not self.training
 
         self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
