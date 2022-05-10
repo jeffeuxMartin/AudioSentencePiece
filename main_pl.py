@@ -125,7 +125,7 @@ def main():
 # model, datasets, tokenizer, metric, hparams, collate_fn,
 class PLModel(pl.LightningModule):
     def __init__(self,
-        model, datasets, tokenizer, hparams, collate_fn, taskconfig
+        model, datasets, tokenizer, hparams, collate_fn, taskconfig,
     ):
         super().__init__()
         self.hparams.update(hparams)
@@ -219,51 +219,10 @@ class PLModel(pl.LightningModule):
                 predicted = True
     
         # ~~~ BUILD: demo dataframe ~~~ #
-        
         return dict(
             loss=outputs.loss,
             predicted=predicted,
             # target=groundtruth_texts,
-        )
-
-    def validation_step(self, batch, batch_idx):
-        outputs = self(batch)
-        assert not self.training
-
-        self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
-        loss = outputs.loss.item()
-        del outputs
-        
-
-        ar_preds = self.generate(
-            **{
-                k: batch[k]
-                for k in batch
-                if k != 'labels'
-            }, 
-            num_beams=self.hparams.num_beams,
-            max_length=self.hparams.generation_max_length,
-        )
-        
-        ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
-        ar_labels = self.tokenizer.batch_decode(
-            batch['labels'], skip_special_tokens=True)
-        ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
-        self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
-        self.metric['valid'].update(preds=ar_texts, target=ar_labels)
-        
-        if self.hparams.verbose_batch > 0:
-            if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
-                print('\n'
-                   'Pred: \033[01;35m' + ar_texts[0] + '\n\033[0m'
-                 + 'GrTr: \033[01;32m' +
-                    (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
-                    + '\n\033[0m')
-        
-        
-        
-        return dict(
-            loss=loss,
         )
         
     def training_step_end(self, outputs):
@@ -277,10 +236,46 @@ class PLModel(pl.LightningModule):
                 batch_size=self.hparams.batch_size,
                 prog_bar=True,
             )
+
     def training_epoch_end(self, outputs):
         if getattr(outputs, "predicted", False):
             self.metric['train'].reset()
-        pass
+
+    def validation_step(self, batch, batch_idx):
+        outputs = self(batch)
+        assert not self.training
+
+        self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
+        loss = outputs.loss.item()
+        del outputs
+        
+        ar_preds = self.generate(
+            **{
+                k: batch[k]
+                for k in batch
+                if k != 'labels'
+            }, 
+            num_beams=self.hparams.num_beams,
+            max_length=self.hparams.generation_max_length,
+        )
+        
+        ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
+        ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+        ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
+        self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
+        self.metric['valid'].update(preds=ar_texts, target=ar_labels)
+        
+        if self.hparams.verbose_batch > 0:
+            if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
+                print('\n'
+                   'Pred: \033[01;35m' + ar_texts[0] + '\n\033[0m'
+                 + 'GrTr: \033[01;32m' +
+                    (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
+                    + '\n\033[0m')
+        
+        return dict(
+            loss=loss,
+        )
 
     def validation_step_end(self, outputs):
         self.log(
@@ -292,11 +287,10 @@ class PLModel(pl.LightningModule):
             batch_size=self.hparams.batch_size,
             prog_bar=True,
         )
+
     def validation_epoch_end(self, outputs):
         self.metric['valid'].reset()
-        pass
-        
-        
+
     def train_dataloader(self):
         return DataLoader(
             dataset=self.trainset,
@@ -320,93 +314,6 @@ class PLModel(pl.LightningModule):
           
         
         
-# def main2(args, task_config, model, tokenizer, train_dataset, dev_dataset, test_dataset, collate_fn):
-#     # ~~~ training args ~~~ #
-#     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-#     training_args_dict = dict(
-#         save_total_limit=args.save_total_limit,
-#         run_name=args.run_name,
-#         output_dir=args.output_dir,
-#         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        
-#         do_train=True,
-#         logging_steps=args.logging_steps,
-#         per_device_train_batch_size=args.batch_size,
-        
-#         do_eval=True,
-#         eval_steps=args.eval_steps,
-#         evaluation_strategy="steps",
-#         eval_accumulation_steps=args.eval_accumulation_steps,
-#         per_device_eval_batch_size=args.eval_batch_size,
-        
-#         learning_rate=args.lr,
-#         warmup_ratio=args.warmup_ratio,
-        
-#         report_to='wandb' if args.wandb else 'none',
-        
-#         num_train_epochs=args.epochs,
-#         save_steps=args.save_steps,
-#     )
-    
-#     if task_config.seq2seq:
-#         training_args_dict["predict_with_generate"] = True
-#         training_args_dict["generation_max_length"] = args.generation_max_length
-    
-#     # ~~~ trainer ~~~ #
-#     compute_metrics_fn = task_config.metric_func(
-#         tokenizer,
-#         **(dict(metric_batch=args.metric_batch, 
-#                 verbose_batch=args.verbose_batch)
-#             if task_config.seq2seq else {}))
-
-#     trainer_args = dict(
-#         model=model,
-#         args=task_config.training_arg_class(**training_args_dict),
-        
-#         # optimizers=optimizers,
-#         train_dataset=(
-#             train_dataset
-#             # dummy_train_dataset
-#         ),
-#         eval_dataset=(
-#             dev_dataset
-#             # dummy_dev_dataset
-#         ),
-#         data_collator=collate_fn,
-        
-#         compute_metrics=compute_metrics_fn,
-#         callbacks=[LogCallback] if args.callback else [],
-#     )
-
-#     trainer = task_config.trainer_class(**trainer_args)
-    
-#     if "check data":
-#         print()
-#         print('Checking Trainloader...')
-#         for i in trainer.get_train_dataloader():
-#             print(i)
-#             break
-#         if args.dev_split != 'none':
-#             print()
-#             print('Checking Evalloader...')
-#             for i in trainer.get_eval_dataloader():
-#                 print(i)
-#                 break
-
-#     trainer.train(
-#         resume_from_checkpoint=args.resume_from_checkpoint,
-#         ignore_keys_for_eval=[  # 也可以直接寫進 config!
-#             'encoder_last_hidden_state', 
-#             'encoder_last_hidden_out_attention_mask',
-#             'encoder_length_loss',
-#             'encoder_pred_word_lengths',
-#             'encoder_hidden_states',
-#             'encoder_attentions',
-#             'masked_lm_loss',    # store in other formats!
-#             'real_length_loss',  # store in other formats!
-#         ] + getattr(model.config, 
-#             "keys_to_ignore_at_inference", []),
-#     )
 
 
 if __name__ == "__main__": 
@@ -473,19 +380,13 @@ if __name__ == "__main__":
         gpus=-1,
         logger=WandbLogger(args.run_name, project=args.proj_name) if args.wandb else True,
         log_every_n_steps=args.logging_steps,
-        val_check_interval=0.001,
-        # check_val_every_n_epoch=5,
+        val_check_interval=min(len(plmodel.train_dataloader()) / args.eval_steps, 1.0),
         default_root_dir=args.output_dir,
         max_epochs=args.epochs,
         strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
-        
-        # weights_save_path=
         enable_progress_bar=True,
-        # enable_checkpointing=
-        
         accumulate_grad_batches=args.gradient_accumulation_steps,
         callbacks=[checkpoint_callback],
-
     )
     trainer.fit(
         plmodel,
