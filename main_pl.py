@@ -137,8 +137,8 @@ class PLModel(pl.LightningModule):
         
         self.taskconfig = taskconfig
         self.metric = dict(
-            train=self.taskconfig.metric_pl(),
-            valid=self.taskconfig.metric_pl(),
+            train=self.taskconfig.metric_pl.metric(),
+            valid=self.taskconfig.metric_pl.metric(),
         )
         self.collate_fn = collate_fn
         
@@ -215,7 +215,7 @@ class PLModel(pl.LightningModule):
                 ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
                 ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
                 self.metric['train'] = self.metric['train'].to(ar_preds.device)
-                self.metric['train'].update(ar_texts, ar_labels)
+                self.metric['train'].update(preds=ar_texts, target=ar_labels)
                 predicted = True
     
         # ~~~ BUILD: demo dataframe ~~~ #
@@ -250,18 +250,15 @@ class PLModel(pl.LightningModule):
             batch['labels'], skip_special_tokens=True)
         ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
         self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
-        self.metric['valid'].update(ar_texts, ar_labels)
+        self.metric['valid'].update(preds=ar_texts, target=ar_labels)
         
         if self.hparams.verbose_batch > 0:
             if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
-                print()
-                print('Pred: \033[01;35m', end='')
-                print(ar_texts[0])
-                print('\033[0m', end='')
-                print('GrTr: \033[01;32m', end='')
-                print([ar_labels[0]] if isinstance(ar_labels[0], list) else ar_labels[0])
-                print('\033[0m', end='')
-                print()
+                print('\n'
+                   'Pred: \033[01;35m' + ar_texts[0] + '\n\033[0m'
+                 + 'GrTr: \033[01;32m' +
+                    (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
+                    + '\n\033[0m')
         
         
         
@@ -272,7 +269,7 @@ class PLModel(pl.LightningModule):
     def training_step_end(self, outputs):
         if getattr(outputs, "predicted", False):
             self.log(
-                f'train_{self.taskconfig.metricname}',
+                f'train_{self.taskconfig.metric_pl.metricname}',
                 self.metric['train'].compute(),
                 on_step=True,
                 on_epoch=False,
@@ -287,7 +284,7 @@ class PLModel(pl.LightningModule):
 
     def validation_step_end(self, outputs):
         self.log(
-            f'valid_{self.taskconfig.metricname}', 
+            f'valid_{self.taskconfig.metric_pl.metricname}', 
             self.metric['valid'].compute(),
             on_step=True,
             on_epoch=True,
