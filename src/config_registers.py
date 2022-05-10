@@ -56,7 +56,7 @@ autoencoder_config = lambda coll: TaskConfig(
     data_structure_def=dict(
         src=(CollUnits if coll else FullUnits),
         tgt=(CollUnits if coll else FullUnits),
-        hint=EnDeLengthData,
+        hint=WordLengthData,
     ),
     seq2seq=False,
 )
@@ -70,7 +70,7 @@ asr_config = lambda coll: TaskConfig(
     data_structure_def=dict(
         src=(CollUnits if coll else FullUnits),
         tgt=TextData,
-        hint=EnDeLengthData,
+        hint=WordLengthData,
     ),
     seq2seq=True,
 )
@@ -84,7 +84,7 @@ st_config = lambda coll: TaskConfig(
     data_structure_def=dict(
         src=(CollUnits if coll else FullUnits),
         tgt=TranslationData,
-        hint=EnDeLengthData,
+        hint=WordLengthData,
     ),
     seq2seq=True,
 )

@@ -30,7 +30,7 @@ for split in splits:
     print(split)
     import os
     with os.popen(f'wc -l ../../golden_corpus/{split}_result_adv.tsv') as ff:
-        total = int(ff.read().strip().split()[0])
+        total = int(ff.read().strip().split('\t')[0])
 
     with open(f"lengths/{split}.len", 'w') as flengths:
         with open(f"paths/{split}.path", 'w') as fpaths:
