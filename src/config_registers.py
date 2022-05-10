@@ -34,6 +34,7 @@ class TaskConfig:
     data_structure_def: Dict = None
     seq2seq: bool = True
     metric_pl: object = None
+    pure_teacherforcing: bool = False
 
 @dataclass
 class MetricClass:
@@ -42,6 +43,7 @@ class MetricClass:
     postprocess_fn: Callable = None
     metric_mode: str = ''
     
+aemetric = MetricClass(WordErrorRate, 'wer', partial(postprocess_text, translation=False), 'min')
 asrmetric = MetricClass(WordErrorRate, 'wer', partial(postprocess_text, translation=False), 'min')
 stmetric = MetricClass(SacreBLEUScore, 'bleu', partial(postprocess_text, translation=True), 'max')
 
@@ -75,6 +77,8 @@ autoencoder_config = lambda coll: TaskConfig(
         hint=WordLengthData,
     ),
     seq2seq=False,
+    metric_pl=aemetric,
+    pure_teacherforcing=True,
 )
 
 asr_config = lambda coll: TaskConfig(
@@ -90,6 +94,7 @@ asr_config = lambda coll: TaskConfig(
     ),
     seq2seq=True,
     metric_pl=asrmetric,
+    pure_teacherforcing=False,
 )
 
 st_config = lambda coll: TaskConfig(
@@ -105,6 +110,7 @@ st_config = lambda coll: TaskConfig(
     ),
     seq2seq=True,
     metric_pl=stmetric,
+    pure_teacherforcing=False,
 )
 
 TASK_CONFIG_DICT = lambda coll: {

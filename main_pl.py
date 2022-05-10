@@ -161,10 +161,6 @@ class PLModel(pl.LightningModule):
         tb_size = self.hparams.batch_size * max(1, self.trainer.num_devices)
         ab_size = self.trainer.accumulate_grad_batches / float(self.trainer.max_epochs)
         self.total_steps = (len(train_loader.dataset) // tb_size) // ab_size
-        # print(f"{tb_size = }")
-        # print(f"{ab_size = }")
-        # print(f"{self.total_steps = }")
-        # print(f"{len(train_loader.dataset) = }")
 
     def configure_optimizers(self):
         """Prepare optimizer and schedule (linear warmup and decay)"""
@@ -208,24 +204,37 @@ class PLModel(pl.LightningModule):
         gen_len = None
         if self.hparams.eval_in_train and self.hparams.metric_batch > 0:
             if batch_idx % self.hparams.metric_batch == 0:
-                ar_preds = self.generate(
-                    **{
-                        k: batch[k]
-                        for k in batch
-                        if k != 'labels'
-                    }, 
-                    num_beams=self.hparams.num_beams,
-                    max_length=self.hparams.generation_max_length,
-                )
-                
-                ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
-                ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
-                ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
-                self.metric['train'] = self.metric['train'].to(ar_preds.device)
-                self.metric['train'].update(preds=ar_texts, target=ar_labels)
-                
-                gen_len = np.mean([np.count_nonzero(pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
-                predicted = True
+                if self.taskconfig.seq2seq:
+                    ar_preds = self.generate(
+                        **{
+                            k: batch[k]
+                            for k in batch
+                            if k != 'labels'
+                        }, 
+                        num_beams=self.hparams.num_beams,
+                        max_length=self.hparams.generation_max_length,
+                    )
+                    
+                    ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
+                    ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+                    ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
+                    self.metric['train'] = self.metric['train'].to(ar_preds.device)
+                    self.metric['train'].update(preds=ar_texts, target=ar_labels)
+                    
+                    gen_len = np.mean([np.count_nonzero(pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
+                    predicted = True
+                else:
+                    predicted_ids = outputs.logits.argmax(-1)
+
+                    predicted_texts = self.tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
+                    ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+                    self.metric['train'] = self.metric['train'].to(predicted_ids.device)
+                    self.metric['train'].update(preds=predicted_texts, target=ar_labels)
+                    
+                    gen_len = np.mean([np.count_nonzero(pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in predicted_ids])
+                    predicted = True
+                    
+                    pass
                 
     
         # ~~~ BUILD: demo dataframe ~~~ #
@@ -261,33 +270,52 @@ class PLModel(pl.LightningModule):
 
         self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.eval_batch_size, prog_bar=True) 
         loss = outputs.loss.item()
-        del outputs
-        
-        ar_preds = self.generate(
-            **{
-                k: batch[k]
-                for k in batch
-                if k != 'labels'
-            }, 
-            num_beams=self.hparams.num_beams,
-            max_length=self.hparams.generation_max_length,
-        )
-        
-        ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
-        ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
-        ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
-        self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
-        self.metric['valid'].update(preds=ar_texts, target=ar_labels)
-        
-        if self.hparams.verbose_batch > 0:
-            if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
-                print('\n'
-                   'Pred: \033[01;35m' + ar_texts[0] + '\n\033[0m'
-                 + 'GrTr: \033[01;32m' +
-                    (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
-                    + '\n\033[0m')
-        gen_len = np.mean([np.count_nonzero(
-            pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
+        if self.taskconfig.seq2seq:
+            del outputs
+            
+            ar_preds = self.generate(
+                **{
+                    k: batch[k]
+                    for k in batch
+                    if k != 'labels'
+                }, 
+                num_beams=self.hparams.num_beams,
+                max_length=self.hparams.generation_max_length,
+            )
+            
+            ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
+            ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+            ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
+            self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
+            self.metric['valid'].update(preds=ar_texts, target=ar_labels)
+            
+            if self.hparams.verbose_batch > 0:
+                if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
+                    print('\n'
+                    'Pred: \033[01;35m' + ar_texts[0] + '\n\033[0m'
+                    + 'GrTr: \033[01;32m' +
+                        (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
+                        + '\n\033[0m')
+            gen_len = np.mean([np.count_nonzero(
+                pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
+        else:
+            predicted_ids = outputs.logits.argmax(-1)
+            
+            decoded_ids = self.tokenizer.batch_decode(predicted_ids, skip_special_tokens=True)
+            ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+            decoded_ids, ar_labels = self.taskconfig.metric_pl.postprocess_fn(decoded_ids, ar_labels)
+            self.metric['valid'] = self.metric['valid'].to(predicted_ids.device)
+            self.metric['valid'].update(preds=decoded_ids, target=ar_labels)
+            
+            if self.hparams.verbose_batch > 0:
+                if batch_idx % self.hparams.verbose_batch == self.hparams.verbose_batch - 1:
+                    print('\n'
+                    'Pred: \033[01;35m' + decoded_ids[0] + '\n\033[0m'
+                    + 'GrTr: \033[01;32m' +
+                        (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
+                        + '\n\033[0m')
+            gen_len = np.mean([np.count_nonzero(
+                pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in predicted_ids])
         
         return dict(
             loss=loss,
