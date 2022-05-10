@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 # region         === importations ===         NOIGER #
+from dataclasses import dataclass
+from functools import partial
 import logging
+from typing import Callable
 
 from src.metrics import postprocess_text
 
@@ -48,6 +51,8 @@ from src.trainers import LogCallback, TrainerCallback
 from src.config_registers import TASK_CONFIG_DICT
 # endregion      === importations ===      NOIGERDNE #
 logging.warning('== import DONE ==')
+
+
 
 def main():
     args = get_args()
@@ -120,7 +125,7 @@ def main():
 # model, datasets, tokenizer, metric, hparams, collate_fn,
 class PLModel(pl.LightningModule):
     def __init__(self,
-        model, datasets, tokenizer, metric, hparams, collate_fn, task
+        model, datasets, tokenizer, hparams, collate_fn, taskconfig
     ):
         super().__init__()
         self.hparams.update(hparams)
@@ -130,12 +135,12 @@ class PLModel(pl.LightningModule):
         
         self.trainset, self.valset = datasets
         
+        self.taskconfig = taskconfig
         self.metric = dict(
-            train=metric(),
-            valid=metric(),
+            train=self.taskconfig.metric_pl(),
+            valid=self.taskconfig.metric_pl(),
         )
         self.collate_fn = collate_fn
-        self.task = task
         
     def forward(self, inputs):
         return self.model(**inputs)
@@ -206,11 +211,9 @@ class PLModel(pl.LightningModule):
                     max_length=self.hparams.generation_max_length,
                 )
                 
-                ar_texts = self.tokenizer.batch_decode(
-                    ar_preds, skip_special_tokens=True)
-                ar_labels = self.tokenizer.batch_decode(
-                    batch['labels'], skip_special_tokens=True)
-                ar_texts, ar_labels = postprocess_text(ar_texts, ar_labels, self.task == "ST")
+                ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
+                ar_labels = self.tokenizer.batch_decode(batch['labels'], skip_special_tokens=True)
+                ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
                 self.metric['train'] = self.metric['train'].to(ar_preds.device)
                 self.metric['train'].update(ar_texts, ar_labels)
                 predicted = True
@@ -245,7 +248,7 @@ class PLModel(pl.LightningModule):
         ar_texts = self.tokenizer.batch_decode(ar_preds, skip_special_tokens=True)
         ar_labels = self.tokenizer.batch_decode(
             batch['labels'], skip_special_tokens=True)
-        ar_texts, ar_labels = postprocess_text(ar_texts, ar_labels, self.task == "ST")
+        ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
         self.metric['valid'] = self.metric['valid'].to(ar_preds.device)
         self.metric['valid'].update(ar_texts, ar_labels)
         
@@ -256,7 +259,7 @@ class PLModel(pl.LightningModule):
                 print(ar_texts[0])
                 print('\033[0m', end='')
                 print('GrTr: \033[01;32m', end='')
-                print(ar_labels[0])
+                print([ar_labels[0]] if isinstance(ar_labels[0], list) else ar_labels[0])
                 print('\033[0m', end='')
                 print()
         
@@ -269,7 +272,7 @@ class PLModel(pl.LightningModule):
     def training_step_end(self, outputs):
         if getattr(outputs, "predicted", False):
             self.log(
-                'train_wer', 
+                f'train_{self.taskconfig.metricname}',
                 self.metric['train'].compute(),
                 on_step=True,
                 on_epoch=False,
@@ -284,7 +287,7 @@ class PLModel(pl.LightningModule):
 
     def validation_step_end(self, outputs):
         self.log(
-            'valid_wer', 
+            f'valid_{self.taskconfig.metricname}', 
             self.metric['valid'].compute(),
             on_step=True,
             on_epoch=True,
@@ -415,15 +418,11 @@ if __name__ == "__main__":
 
 
     # main2()
-    if args.task == 'ASR':
-        metric_cls = WordErrorRate
-    elif args.task == "ST":
-        metric_cls = SacreBLEUScore
+
     plmodel = PLModel(
         model=model,
         datasets=(train_dataset, dev_dataset),
         tokenizer=tokenizer,
-        metric=metric_cls,
         hparams=dict(
             lr=args.lr,
             batch_size=args.batch_size,  # train val different? FIXME
@@ -436,7 +435,7 @@ if __name__ == "__main__":
             num_beams=args.num_beams,
         ),
         collate_fn=collate_fn,
-        task=args.task,
+        taskconfig=task_config,
     )
     
 
@@ -466,7 +465,8 @@ if __name__ == "__main__":
     checkpoint_callback = ModelCheckpoint(
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
-        monitor="valid_wer" if args.task == "ASR" else "valid_bleu",
+        monitor=f"valid_{task_config.metric_pl.metricname}",
+        mode = task_config.metric_pl.metric_mode,
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,

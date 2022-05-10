@@ -1,6 +1,7 @@
 #!/usr/bin/env python3  # ~~~ VERIFIED ~~~ #
 from typing import Callable, Dict, Type, Optional
 from dataclasses import dataclass
+from functools import partial
 
 from transformers import TrainingArguments
 from transformers import Trainer
@@ -15,6 +16,9 @@ from .metrics import compute_metrics_WER_logits
 from .metrics import compute_metrics_WER_HF
 from .metrics import compute_metrics_BLEU
 from .metrics import compute_metrics_BLEU_HF
+from .metrics import postprocess_text
+
+from torchmetrics import WordErrorRate, SacreBLEUScore
 
 
 @dataclass
@@ -29,6 +33,18 @@ class TaskConfig:
     metric_func: Callable = None
     data_structure_def: Dict = None
     seq2seq: bool = True
+    metric_pl: object = None
+
+@dataclass
+class MetricClass:
+    metric: object = None
+    metricname: str = ""
+    postprocess_fn: Callable = None
+    metric_mode = ''
+    
+asrmetric = MetricClass(WordErrorRate, 'wer', partial(postprocess_text, translation=False), 'min')
+stmetric = MetricClass(SacreBLEUScore, 'bleu', partial(postprocess_text, translation=True), 'max')
+
 
 
 CollUnits = TrainingDataType("collunits", "collunit")
@@ -73,6 +89,7 @@ asr_config = lambda coll: TaskConfig(
         hint=WordLengthData,
     ),
     seq2seq=True,
+    metric_pl=asrmetric,
 )
 
 st_config = lambda coll: TaskConfig(
@@ -87,6 +104,7 @@ st_config = lambda coll: TaskConfig(
         hint=WordLengthData,
     ),
     seq2seq=True,
+    metric_pl=stmetric,
 )
 
 TASK_CONFIG_DICT = lambda coll: {
