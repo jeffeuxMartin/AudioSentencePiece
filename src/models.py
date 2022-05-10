@@ -42,9 +42,14 @@ from transformers.models.bart.modeling_bart import _expand_mask
 
 import pytorch_lightning as pl
 
-from .torch_cif import cif_function
-from .utils import mask_generator
-from .datasets import DataSetCollectorGeneral
+try:
+    from .torch_cif import cif_function
+    from .utils import mask_generator
+    from .datasets import DataSetCollectorGeneral
+except:
+    from torch_cif import cif_function
+    from utils import mask_generator
+    from datasets import DataSetCollectorGeneral
 # endregion      === importations ===      NOIGERDNE #
 
 # region       === aug_dataclasses ===        NOIGER #
@@ -166,7 +171,7 @@ class SentBartEncoder(BartEncoder):
                 encoder_outputs.last_hidden_state,
                 word_length_tensor=word_length_tensor,
                 alpha_values=alpha_values,
-                padding_mask=1 - attention_mask)
+                padding_mask=1 - attention_mask if attention_mask is not None else None)
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         if not return_dict:
@@ -602,3 +607,276 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
 
         return input_ids, model_kwargs
     # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+class PreSentBartEncoder(BartEncoder):
+    def __init__(self, config: BartConfig, embed_tokens: Optional[nn.Embedding] = None):
+        super().__init__(config, embed_tokens)
+        embed_dim = config.d_model
+        self.collapse_n = getattr(config, "collapse_n", 0)
+        self.config.collapse_n = self.collapse_n
+        if self.collapse_n == -1:
+            self.skip_cif = True
+        else:
+            self.skip_cif = False
+        self.use_self = getattr(config, "use_self", False)
+        self.config.use_self = self.use_self
+        
+        self.post_initialization(embed_dim, word_extractor=cif_function)
+        
+    def post_initialization(self, embed_dim, word_extractor=cif_function):
+        # == encoder == #
+        self.alpha_predictor = nn.Linear(embed_dim, 1)  # TODO: check!
+        self.word_extractor = word_extractor
+        self.length_predictor = nn.Linear(embed_dim, 1)
+
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        word_length_tensor: Optional[torch.LongTensor] = None,
+        alpha_values: Optional[torch.FloatTensor] = None,
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        head_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+      ) -> Union[Tuple, AugBaseModelOutput]:
+      
+
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # retrieve input_ids and inputs_embeds
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+        elif input_ids is not None:
+            input_shape = input_ids.size()
+            input_ids = input_ids.view(-1, input_shape[-1])
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
+
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
+
+        embed_pos = self.embed_positions(input_shape)
+
+        hidden_states = inputs_embeds + embed_pos
+        hidden_states = self.layernorm_embedding(hidden_states)
+        hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        # @@@@@@@@@@@@@@@@@@
+        # # expand attention_mask
+        # if attention_mask is not None:
+        #     # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        #     attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype)
+        # @@@@@@@@@@@@@@@@@@
+
+        encoder_states = () if output_hidden_states else None
+        all_attentions = () if output_attentions else None
+
+        # check if head_mask has a correct number of layers specified if desired
+        if head_mask is not None:
+            if head_mask.size()[0] != (len(self.layers)):
+                raise ValueError(
+                    f"The head_mask should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
+                )
+                
+                
+        # ############################ #
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        if self.skip_cif:
+            hidden_states = hidden_states
+            out_attention_mask = attention_mask
+            length_loss = (
+                torch.zeros(len(hidden_states)).float(),
+                torch.zeros(len(hidden_states)).long(),)
+            pred_word_lengths = None
+        else:
+            if self.collapse_n == 1:    # 1 for all
+                word_length_tensor = torch.ones_like(word_length_tensor)
+            elif self.collapse_n == 2:  # all for all
+                word_length_tensor = (attention_mask.sum(-1).long()
+                                      .to(word_length_tensor.device))
+                                        # else: N for all
+            (hidden_states, out_attention_mask, length_loss,
+                          # out_attention_mask := (
+                          #     encoder_output_attention_mask)
+             pred_word_lengths,
+             _, __) = self.sent_retriever(
+                hidden_states,
+                word_length_tensor=word_length_tensor,
+                alpha_values=alpha_values,
+                padding_mask=1 - attention_mask if attention_mask is not None else None)
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        # expand attention_mask
+        if attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            attention_mask = _expand_mask(out_attention_mask, inputs_embeds.dtype)
+        # ############################ #
+
+
+        for idx, encoder_layer in enumerate(self.layers):
+            if output_hidden_states:
+                encoder_states = encoder_states + (hidden_states,)
+            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
+            dropout_probability = random.uniform(0, 1)
+            if self.training and (dropout_probability < self.layerdrop):  # skip the layer
+                layer_outputs = (None, None)
+            else:
+                if self.gradient_checkpointing and self.training:
+
+                    def create_custom_forward(module):
+                        def custom_forward(*inputs):
+                            return module(*inputs, output_attentions)
+
+                        return custom_forward
+
+                    layer_outputs = torch.utils.checkpoint.checkpoint(
+                        create_custom_forward(encoder_layer),
+                        hidden_states,
+                        attention_mask,
+                        (head_mask[idx] if head_mask is not None else None),
+                    )
+                else:
+                    layer_outputs = encoder_layer(
+                        hidden_states,
+                        attention_mask,
+                        layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                        output_attentions=output_attentions,
+                    )
+
+                hidden_states = layer_outputs[0]
+
+            if output_attentions:
+                all_attentions = all_attentions + (layer_outputs[1],)
+
+        if output_hidden_states:
+            encoder_states = encoder_states + (hidden_states,)
+
+        if not return_dict:
+            encoder_outputs = tuple(v for v in [hidden_states, encoder_states, all_attentions] if v is not None)
+        else:
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state=hidden_states, hidden_states=encoder_states, attentions=all_attentions
+            )
+
+        if not return_dict:
+            return tuple(v for v in [
+                hidden_states, 
+                out_attention_mask, 
+                encoder_outputs.hidden_states,
+                length_loss,
+                pred_word_lengths,
+                encoder_outputs.attentions,
+            # ] if v is not None)
+            ] if v is not None)
+        return AugBaseModelOutput(
+            last_hidden_state=hidden_states, 
+            out_attention_mask=out_attention_mask, 
+            length_loss=length_loss,
+            pred_word_lengths=pred_word_lengths,
+            hidden_states=encoder_outputs.hidden_states,
+            # # attentions=encoder_outputs.attentions,
+            # attentions=encoder_outputs.attentions,
+        )
+
+    def sent_retriever(self, 
+        encoder__last_hidden_state, 
+        word_length_tensor=None,
+        alpha_values=None,
+        padding_mask=None,
+        return_all=False,
+        return_original=False,
+      ):
+        if alpha_values is None:
+            alpha_values = self.alpha_predictor(encoder__last_hidden_state)
+            alpha_values = alpha_values.squeeze(-1).sigmoid()  # B x S
+
+        if word_length_tensor is None or self.use_self:
+            # print("No given! self predict")
+            word_length_tensor = alpha_values.sum(-1).long()
+        else:
+            # print("Wordlen given")
+            # predicted_word_length_tensor = alpha_values.sum(-1).long()
+            pass
+
+        encoder__word_representations_CIF = (
+            self.word_extractor(
+                encoder__last_hidden_state,
+                alpha=alpha_values,
+                padding_mask=padding_mask,
+                target_lengths=word_length_tensor,
+            )
+        )
+        # TODO: Keep all CIF
+        [encoder_word_representation] = encoder__word_representations_CIF['cif_out']
+        [pred_word_lengths] = encoder__word_representations_CIF['alpha_sum']
+        encoder_word_representation = encoder_word_representation.contiguous()
+        # pred_word_lengths = pred_word_lengths.contiguous()
+        # length_loss = 0.
+        length_loss = ((pred_word_lengths, word_length_tensor,)
+            if word_length_tensor is not None else
+            (pred_word_lengths, pred_word_lengths,))
+            # aliased as `encoder_word_representation`
+            # FIXME: distributed problem!
+            # TODO: add other CIF ouptuts!
+        # length_loss = length_loss.contiguous()
+
+        encoder_output_attention_mask = (
+            # mask_generator(word_length_tensor) 
+            mask_generator(word_length_tensor) 
+            if word_length_tensor is not None else
+            mask_generator(pred_word_lengths))
+            # TODO: check length prediction!
+            
+        return (
+            encoder_word_representation, 
+            encoder_output_attention_mask, 
+            length_loss,
+            pred_word_lengths,
+            encoder__word_representations_CIF if return_all else None,
+            # encoder__last_hidden_state if return_original else None,
+            encoder__last_hidden_state if return_original else None,
+        )
+
+class PreSentBart(SentBart):
+    def __init__(self, config: BartConfig):
+        super(SentBart, self).__init__(config)
+
+        padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+        self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+
+        self.encoder = PreSentBartEncoder(config, self.shared)
+        self.decoder = BartDecoder(config, self.shared)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+class PreSentBartForConditionalGeneration(SentBartForConditionalGeneration):
+    def __init__(self, config: BartConfig):
+        super(SentBartForConditionalGeneration, self).__init__(config)
+        self.model = PreSentBart(config)
+        self.register_buffer(
+            "final_logits_bias", 
+            torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(
+            config.d_model, 
+            self.model.shared.num_embeddings, 
+            bias=False)
+
+        self.weight_len = getattr(config, "weight_len", None)
+        self.config.weight_len = self.weight_len
+        self.minimize_len = getattr(config, "minimize_len", False)
+        self.config.minimize_len = self.minimize_len
+
+        # Initialize weights and apply final processing
+        self.post_init()
