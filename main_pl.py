@@ -16,6 +16,7 @@ Path(PRETRAINED_PREFIX / "hf_pretrains").mkdir(0o755, parents=True, exist_ok=Tru
 Path(PRETRAINED_PREFIX / "hf_toks").mkdir(0o755, parents=True, exist_ok=True)    
 
 import os
+import sys
 
 from datetime import datetime
 strftime, now = datetime.strftime, datetime.now
