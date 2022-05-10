@@ -395,7 +395,7 @@ if __name__ == "__main__":
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
         monitor=f"valid_{task_config.metric_pl.metricname}",
-        mode = task_config.metric_pl.metric_mode,
+        mode=task_config.metric_pl.metric_mode,
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,
