@@ -203,6 +203,7 @@ def get_args():
     parser.add_argument("-lr", "--lr", type=float, default=2e-4)
     parser.add_argument("--gradient_accumulation_steps", "--gacc", type=int, default=1)
     parser.add_argument("--resume_from_checkpoint", "--ckpt", type=str, default=None)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
         
     # @@@ self-tuned
     parser.add_argument("-B", "--eval_batch_size", type=int, default=None)

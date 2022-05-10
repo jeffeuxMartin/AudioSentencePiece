@@ -172,7 +172,7 @@ class PLModel(pl.LightningModule):
         optimizer_grouped_parameters = [
             {
                 "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": min(self.hparams.get("weight_decay", 0.1), self.hparams["lr"],),
+                "weight_decay": self.hparams.get("weight_decay", 0.01),
             },
             {
                 "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
@@ -365,6 +365,7 @@ if __name__ == "__main__":
             metric_batch=args.metric_batch,
             eval_in_train=args.eval_in_train,
             num_beams=args.num_beams,
+            weight_decay=args.weight_decay,
         ),
         collate_fn=collate_fn,
         taskconfig=task_config,
