@@ -164,6 +164,7 @@ class PLModel(pl.LightningModule):
         print(f"{tb_size = }")
         print(f"{ab_size = }")
         print(f"{self.total_steps = }")
+        print(f"{len(train_loader.dataset) = }")
 
     def configure_optimizers(self):
         """Prepare optimizer and schedule (linear warmup and decay)"""
