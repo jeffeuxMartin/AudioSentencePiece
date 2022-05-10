@@ -392,7 +392,7 @@ if __name__ == "__main__":
     )
     trainer.fit(
         plmodel,
-        # ckpt=
+        ckpt=args.resume_from_checkpoint,
     )  # dataloader here? <-- FIXME
     
 
@@ -409,3 +409,4 @@ if __name__ == "__main__":
 1. callbacks=[LogCallback] if args.callback else [],
 1. gen_len
 """
+# if args.dev_split != 'none':
