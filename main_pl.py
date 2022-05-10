@@ -466,7 +466,7 @@ if __name__ == "__main__":
     checkpoint_callback = ModelCheckpoint(
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
         # ref.: https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
-        monitor="valid_wer",
+        monitor="valid_wer" if args.task == "ASR" else "valid_bleu",
         save_top_k=args.save_total_limit,
         every_n_train_steps=args.save_steps,
         save_on_train_epoch_end=True,
