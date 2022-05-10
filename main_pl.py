@@ -26,6 +26,8 @@ import sys
 from datetime import datetime
 strftime, now = datetime.strftime, datetime.now
 
+import numyp as np
+
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
@@ -217,16 +219,23 @@ class PLModel(pl.LightningModule):
                 ar_texts, ar_labels = self.taskconfig.metric_pl.postprocess_fn(ar_texts, ar_labels)
                 self.metric['train'] = self.metric['train'].to(ar_preds.device)
                 self.metric['train'].update(preds=ar_texts, target=ar_labels)
+                
+                gen_len = np.mean([np.count_nonzero(pred != self.tokenizer.pad_token_id) for pred in ar_preds])
                 predicted = True
+                
     
         # ~~~ BUILD: demo dataframe ~~~ #
         return dict(
             loss=outputs.loss,
             predicted=predicted,
             # target=groundtruth_texts,
+            gen_len=gen_len,
         )
         
     def training_step_end(self, outputs):
+        self.log("gen_len", round(sum(outputs.gen_len) / len(outputs.gen_len), 4),
+            batch_size=self.hparams.batch_size,
+        )
         if getattr(outputs, "predicted", False):
             self.log(
                 f'train_{self.taskconfig.metric_pl.metricname}',
@@ -246,7 +255,7 @@ class PLModel(pl.LightningModule):
         outputs = self(batch)
         assert not self.training
 
-        self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.batch_size, prog_bar=True) 
+        self.log(f"valid_loss", outputs.loss, batch_size=self.hparams.eval_batch_size, prog_bar=True) 
         loss = outputs.loss.item()
         del outputs
         
@@ -273,19 +282,24 @@ class PLModel(pl.LightningModule):
                  + 'GrTr: \033[01;32m' +
                     (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
                     + '\n\033[0m')
+        gen_len = np.mean([np.count_nonzero(pred != self.tokenizer.pad_token_id) for pred in ar_preds])
         
         return dict(
             loss=loss,
+            gen_len=gen_len,
         )
 
     def validation_step_end(self, outputs):
+        self.log("gen_len", round(sum(outputs.gen_len) / len(outputs.gen_len), 4),
+            batch_size=self.hparams.eval_batch_size,
+        )
         self.log(
             f'valid_{self.taskconfig.metric_pl.metricname}', 
             self.metric['valid'].compute(),
             on_step=True,
             on_epoch=True,
             
-            batch_size=self.hparams.batch_size,
+            batch_size=self.hparams.eval_batch_size,
             prog_bar=True,
         )
 
@@ -302,11 +316,12 @@ class PLModel(pl.LightningModule):
         )
         
     def val_dataloader(self):
+        self.hparams.update(dict(eval_batch_size=getattr(self.hparams, 
+                        "eval_batch_size", None
+                       ) or self.hparams.batch_size))
         return DataLoader(
             dataset=self.valset,
-            batch_size=(getattr(self.hparams, 
-                        "eval_batch_size", None
-                       ) or self.hparams.batch_size),
+            batch_size=self.hparams.eval_batch_size,
             shuffle=False,
             num_workers=self.valset.num_workers,
             collate_fn=self.collate_fn,
@@ -382,7 +397,7 @@ if __name__ == "__main__":
         gpus=-1,
         logger=WandbLogger(args.run_name, project=args.proj_name) if args.wandb else True,
         log_every_n_steps=args.logging_steps,
-        val_check_interval=min(len(plmodel.train_dataloader()) / args.eval_steps, 1.0),
+        val_check_interval=min(args.eval_steps / len(plmodel.train_dataloader()), 1.0),
         default_root_dir=args.output_dir,
         max_epochs=args.epochs,
         strategy=DDPStrategy(find_unused_parameters=True) if any('--local_rank' in i for i in sys.argv) else None,
