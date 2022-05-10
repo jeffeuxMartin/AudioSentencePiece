@@ -202,6 +202,7 @@ class PLModel(pl.LightningModule):
         # groundtruth_texts = batch["texts"]
         # if batch_idx % 10 == 0:
         predicted = False
+        gen_len = None
         if self.hparams.eval_in_train and self.hparams.metric_batch > 0:
             if batch_idx % self.hparams.metric_batch == 0:
                 ar_preds = self.generate(
@@ -220,22 +221,22 @@ class PLModel(pl.LightningModule):
                 self.metric['train'] = self.metric['train'].to(ar_preds.device)
                 self.metric['train'].update(preds=ar_texts, target=ar_labels)
                 
-                gen_len = np.mean([np.count_nonzero(pred != self.tokenizer.pad_token_id) for pred in ar_preds])
+                gen_len = np.mean([np.count_nonzero(pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
                 predicted = True
                 
     
         # ~~~ BUILD: demo dataframe ~~~ #
-        return dict(
+        return {**dict(
             loss=outputs.loss,
             predicted=predicted,
             # target=groundtruth_texts,
-            gen_len=gen_len,
-        )
+        ), **(dict(gen_len=gen_len) if gen_len is not None else {})}
         
     def training_step_end(self, outputs):
-        self.log("gen_len", round(sum(outputs.gen_len) / len(outputs.gen_len), 4),
-            batch_size=self.hparams.batch_size,
-        )
+        if 'gen_len' in outputs:
+            self.log("gen_len", round(outputs['gen_len'], 4),
+                batch_size=self.hparams.batch_size,
+            )
         if getattr(outputs, "predicted", False):
             self.log(
                 f'train_{self.taskconfig.metric_pl.metricname}',
@@ -282,7 +283,8 @@ class PLModel(pl.LightningModule):
                  + 'GrTr: \033[01;32m' +
                     (ar_labels[0][0] if isinstance(ar_labels[0], list) else ar_labels[0])
                     + '\n\033[0m')
-        gen_len = np.mean([np.count_nonzero(pred != self.tokenizer.pad_token_id) for pred in ar_preds])
+        gen_len = np.mean([np.count_nonzero(
+            pred.detach().cpu().numpy() != self.tokenizer.pad_token_id) for pred in ar_preds])
         
         return dict(
             loss=loss,
@@ -296,7 +298,7 @@ class PLModel(pl.LightningModule):
         FIXME: eval_accum? now using metric_batch!
         """
 
-        self.log("gen_len", round(sum(outputs.gen_len) / len(outputs.gen_len), 4),
+        self.log("gen_len", round(outputs['gen_len'], 4),
             batch_size=self.hparams.eval_batch_size,
         )
         self.log(

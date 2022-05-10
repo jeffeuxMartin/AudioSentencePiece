@@ -45,7 +45,7 @@ else
 fi
 
 echo '============ START! ============'
-if [ $GPU_COUNTS -ge 1 ]; then
+if [ $GPU_COUNTS -ge 2 ]; then
 # python3 -i
 # python3 -m pdb -c continue -m torch.distributed.launch --nproc_per_node=2 `
     OMP_NUM_THREADS=$GPU_COUNTS \
