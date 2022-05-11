@@ -43,9 +43,15 @@ VRAM_SIZE={vram_size}
     echo 'No GPU!'
     exit()
   fi
-  echo GPUmax '=' $GPU_maxbatch
+  
+  export GPU_maxbatch=$GPU_maxbatch
+  export GPU_COUNTS=$GPU_COUNTS
+}
 
+function calculate_batch2 () {
+  evalbatchsize=$2
   evalbatchsize="${evalbatchsize:=$1}"
+  calculate_batch
   python -c '
 def ceil(x): return 1 + int(x - 0.0001)
 max_batch_per_gpu = '$GPU_maxbatch'
@@ -64,7 +70,12 @@ real_batch={real_batch}
 evalreal_batch={evalreal_batch}
 gacc={grad_acc}""")
 '
+  export real_batch=$real_batch
+  export evalreal_batch=$evalreal_batch
+  export gacc=$gacc
 }
 
-eval $(calculate_batch 12)
+calculate_batch2 16
+echo $real_batch
+echo $evalreal_batch
 echo $gacc
