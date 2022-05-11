@@ -6,7 +6,7 @@
 * [x]    5. collunit_CIF_AE    
   * [o]  6. collunit_CIF_AEASR 
   * [ ]  7. collunit_CIF_AEST  
-* [ ]    8. fullunit_CIF_AE
+* [o]    8. fullunit_CIF_AE
   * [ ]  9. fullunit_CIF_AEASR
   * [ ] 10. fullunit_CIF_AEST
 * [ ]   11. collunit_Tfm_AE

@@ -1,17 +1,11 @@
-#!zsh
+#!/bin/sh
 
 Task="${Task:=ASR}"
 Battleship="${Battleship:=true}"
 USE_AE="${USE_AE:=false}"
 FULLUNIT="${FULLUNIT:=false}"
 
-
-
-
-
 ###############################
-#!/bin/sh
-
 export PATH=`
     `/home/jeffeuxmartin/miniconda3/bin:`
     `/home/jeffeuxmartin/.local/bin:`
@@ -37,18 +31,6 @@ unset __conda_setup
 cd /home/jeffeuxmartin/AudioWords
 conda activate revived
 #############################33
-
-
-
-
-
-
-
-
-
-
-
-
 
 if [ $FULLUNIT = false ]; then
   case $Task in  # coll
