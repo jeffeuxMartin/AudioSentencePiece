@@ -215,7 +215,7 @@ case $Task in
       ;;
 esac
 
-if [ $USE_AE = true ];
+if [ $USE_AE = true ]; then
     PretrainedAE="${PretrainedAE:=selfpret/AEmodel}"
     IFS=' ' PretrainedArgs=(
       --pretrained_name "$PretrainedAE" 
