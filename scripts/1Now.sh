@@ -63,4 +63,5 @@ evalreal_batch={evalreal_batch}
 gacc={grad_acc}""")
 '
 }
+calculate_batch 12
 echo $gacc
