@@ -174,6 +174,8 @@ def mask_generator(X_len, X=None, max_len=None):
 def get_args():
     parser = argparse.ArgumentParser()
     
+    parser.add_argument("--mode", type=str, default='train')
+    
     parser.add_argument("--task", type=str, default='ASR')
     parser.add_argument("--datapath", type=str, default="data/LibriSpeechUnits")
     parser.add_argument("--proj_name", type=str, default="HuggingFaceSentASR_May08")
