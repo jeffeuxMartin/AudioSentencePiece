@@ -1,7 +1,7 @@
 #!sh
 python3 \
 AudioSentencePiece/main_pl.py \
-  --pretrained_name ./AEmodel --fix_encoder \
+  --pretrained_name selfpret/AEmodel --fix_encoder \
   -b 8 \
   -B 8 \
   --eval_steps 3000 \
