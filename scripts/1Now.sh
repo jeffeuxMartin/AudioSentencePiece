@@ -41,7 +41,7 @@ VRAM_SIZE={vram_size}
     GPU_maxbatch=$((1 * 12 / $datasize))
   else
     echo 'No GPU!'
-    exit()
+    exit
   fi
   
   export GPU_maxbatch=$GPU_maxbatch
