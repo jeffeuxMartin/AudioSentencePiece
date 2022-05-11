@@ -41,6 +41,7 @@ VRAM_SIZE={vram_size}
     GPU_maxbatch=$((1 * 12 / $datasize))
   else
     echo 'No GPU!'
+    exit()
   fi
   echo GPUmax '=' $GPU_maxbatch
 
@@ -64,5 +65,5 @@ evalreal_batch={evalreal_batch}
 gacc={grad_acc}""")
 '
 }
-calculate_batch 12
+eval $(calculate_batch 12)
 echo $gacc
