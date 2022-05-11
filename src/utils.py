@@ -175,6 +175,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--mode", type=str, default='train')
+    parser.add_argument("--hf_tosave", type=str, default=None)
     
     parser.add_argument("--task", type=str, default='ASR')
     parser.add_argument("--datapath", type=str, default="data/LibriSpeechUnits")
