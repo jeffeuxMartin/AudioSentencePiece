@@ -106,7 +106,7 @@ function calculate_batch () {
   evalbatchsize=$2
   evalbatchsize="${evalbatchsize:=$1}"
   calculate_batch0
-  python -c '
+  eval $(python -c '
 def ceil(x): return 1 + int(x - 0.0001)
 max_batch_per_gpu = '$GPU_maxbatch'
 gpu_count = '$GPU_COUNTS'
@@ -123,7 +123,7 @@ print(f"""
 real_batch={real_batch}
 evalreal_batch={evalreal_batch}
 gacc={grad_acc}""")
-'
+')
   export real_batch=$real_batch
   export evalreal_batch=$evalreal_batch
   export gacc=$gacc
