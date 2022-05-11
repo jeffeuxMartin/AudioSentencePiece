@@ -33,11 +33,11 @@ VRAM_SIZE={vram_size}
     *  ) datasize=1;;
   esac
 
-  if [ $VRAM_SIZE -ge 40 ]; then
+  if [[ $VRAM_SIZE -ge 40 ]]; then
     GPU_maxbatch=$((4 * 12 / $datasize))
-  elif [ $VRAM_SIZE -ge 20 ]; then
+  elif [[ $VRAM_SIZE -ge 20 ]]; then
     GPU_maxbatch=$((2 * 12 / $datasize))
-  elif [ $VRAM_SIZE -ge 10 ]; then
+  elif [[ $VRAM_SIZE -ge 10 ]]; then
     GPU_maxbatch=$((1 * 12 / $datasize))
   else
     echo 'No GPU!'
