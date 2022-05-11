@@ -42,6 +42,7 @@ VRAM_SIZE={vram_size}
   else
     echo 'No GPU!'
   fi
+  echo GPUmax '=' $GPU_maxbatch
 
   evalbatchsize="${evalbatchsize:=$1}"
   python -c '
