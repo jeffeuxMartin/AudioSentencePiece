@@ -5,6 +5,8 @@ Battleship="${Battleship:=true}"
 USE_AE="${USE_AE:=false}"
 FULLUNIT="${FULLUNIT:=false}"
 
+echo '如果是用沒 CIF 記得加 --original (will overwrite `collapse_n`!)'
+echo '如果是用 not collapsed unit 記得加 --notcoll'
 ###############################
 export PATH=`
     `/home/jeffeuxmartin/miniconda3/bin:`

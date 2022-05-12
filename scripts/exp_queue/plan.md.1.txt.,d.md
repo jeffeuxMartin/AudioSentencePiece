@@ -10,7 +10,7 @@
   * [ ]  9. fullunit_CIF_AEASR
   * [ ] 10. fullunit_CIF_AEST
 * [v]   11. collunit_Tfm_AE
-  * [ ] 12. collunit_Tfm_AEASR
+  * [v] 12. collunit_Tfm_AEASR
   * [ ] 13. collunit_Tfm_AEST
 (CIF   --> others2s)
 (ST    --> ASRST     --> IC)
