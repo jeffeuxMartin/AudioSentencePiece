@@ -41,7 +41,7 @@ if [ $FULLUNIT = false ]; then
   esac
 else
   case $Task in  # full
-    AE)  bsz=`   `16; evalbsz=`    `8;;
+    AE)  bsz=`   `16; evalbsz=`    `6;;
     ASR) bsz=`   `18; evalbsz=`   `24;;
     ST)  bsz=`   `18; evalbsz=`   `18;;
     *)   bsz=`    `6; evalbsz=`    `6;;
