@@ -65,7 +65,7 @@ VRAM_SIZE={vram_size}
   echo "你拿到 $GPU_COUNTS 張 GPU, 每張 VRAM = $VRAM_SIZE GB..."
 
   case Task in
-    AE ) datasize=32;;
+    AE ) datasize=64;;
     ASR) datasize=4;;
     ST ) datasize=2;;
     *  ) datasize=2;;
