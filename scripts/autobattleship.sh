@@ -6,7 +6,7 @@ USE_AE="${USE_AE:=false}"
 FULLUNIT="${FULLUNIT:=false}"
 
 echo '如果是用沒 CIF 記得加 --original (will overwrite `collapse_n`!)'
-echo '如果是用 not collapsed unit 記得加 --notcoll'
+echo '如果是用 not collapsed unit 記得加 --notcoll 並用 FULLUNIT=true'
 ###############################
 export PATH=`
     `/home/jeffeuxmartin/miniconda3/bin:`
@@ -65,7 +65,7 @@ VRAM_SIZE={vram_size}
   echo "你拿到 $GPU_COUNTS 張 GPU, 每張 VRAM = $VRAM_SIZE GB..."
 
   case Task in
-    AE ) datasize=64;;
+    AE ) datasize=6;;
     ASR) datasize=4;;
     ST ) datasize=2;;
     *  ) datasize=2;;

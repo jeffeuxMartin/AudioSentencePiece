@@ -450,6 +450,9 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
         # print(self.model.encoder.alpha_predictor.weight[0][:6] * 100)
         # print(self.model.decoder.layers[0].fc1.weight[0][:6] * 100)
         
+        if self.minimize_len:
+            word_length_tensor = None
+
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
@@ -494,7 +497,8 @@ class SentBartForConditionalGeneration(BartForConditionalGeneration):
             # real_length_loss = torch.linalg.vector_norm(outputs.encoder_length_loss.float(), ord=1)
             real_length_loss = loss_fct(*(outputs.encoder_length_loss))
             # endregion <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        elif self.minimize_len and word_length_tensor is None:
+        # elif self.minimize_len and word_length_tensor is None:
+        elif self.minimize_len:
             loss_fct = nn.L1Loss()
             real_length_loss = loss_fct(
                 outputs.encoder_length_loss[0],
