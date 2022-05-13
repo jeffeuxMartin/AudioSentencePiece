@@ -91,19 +91,20 @@ function calculate_batch () {
   evalbatchsize="${evalbatchsize:=$1}"
   calculate_batch0
   PYSCRIPT=$(python -c '
+import sys
 def ceil(x): return 1 + int(x - 0.0001)
 max_batch_per_gpu = '$GPU_maxbatch'
-print(f"""{max_batch_per_gpu = }""")
+print(f"""{max_batch_per_gpu = }""", file=sys.stderr)
 gpu_count = '$GPU_COUNTS'
-print(f"""{gpu_count = }""")
+print(f"""{gpu_count = }""", file=sys.stderr)
 batchsize = '$1'
-print(f"""{batchsize = }""")
+print(f"""{batchsize = }""", file=sys.stderr)
 averaged_batchsize = int(batchsize / gpu_count)
-print(f"""{averaged_batchsize = }""")
+print(f"""{averaged_batchsize = }""", file=sys.stderr)
 grad_acc = ceil(averaged_batchsize / max_batch_per_gpu)
-print(f"""{grad_acc = }""")
+print(f"""{grad_acc = }""", file=sys.stderr)
 real_batch = averaged_batchsize // grad_acc
-print(f"""{real_batch = }""")
+print(f"""{real_batch = }""", file=sys.stderr)
 
 evalbatchsize = '$evalbatchsize'
 evalaveraged_batchsize = int(evalbatchsize / gpu_count)
