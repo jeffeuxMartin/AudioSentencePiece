@@ -21,7 +21,7 @@
 
 # Chap4
 * [@]  1. collunit_CIF_AE$selfL   
-* [ ]  4. collunit_CIF_AE$minL     
+* [@]  4. collunit_CIF_AE$minL     
 * [ ]  7. collunit_CIF_AE$1L     
 * [ ] 10. collunit_CIF_AE$FullL     
 
