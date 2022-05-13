@@ -65,18 +65,18 @@ VRAM_SIZE={vram_size}
   echo "你拿到 $GPU_COUNTS 張 GPU, 每張 VRAM = $VRAM_SIZE GB..."
 
   case Task in
-    AE ) datasize=8;;
-    ASR) datasize=2;;
-    ST ) datasize=1;;
-    *  ) datasize=1;;
+    AE ) datasize=32;;
+    ASR) datasize=4;;
+    ST ) datasize=2;;
+    *  ) datasize=2;;
   esac
 
   if [[ $VRAM_SIZE -ge 40 ]]; then
-    GPU_maxbatch=$((4 * 12 / $datasize))
+    GPU_maxbatch=$((4 * 24 / $datasize))
   elif [[ $VRAM_SIZE -ge 20 ]]; then
-    GPU_maxbatch=$((2 * 12 / $datasize))
+    GPU_maxbatch=$((2 * 24 / $datasize))
   elif [[ $VRAM_SIZE -ge 10 ]]; then
-    GPU_maxbatch=$((1 * 12 / $datasize))
+    GPU_maxbatch=$((1 * 24 / $datasize))
   else
     echo 'No GPU!'
     exit
