@@ -109,9 +109,13 @@ evalreal_batch={evalreal_batch}
 gacc={grad_acc}""")
 ')
   export real_batch=$real_batch
+  echo real_batch=$real_batch
   export evalreal_batch=$evalreal_batch
+  echo evalreal_batch=$evalreal_batch
   export gacc=$gacc
+  echo gacc=$gacc
   export GPU_COUNTS=$GPU_COUNTS
+  echo GPU_COUNTS=$GPU_COUNTS
 }
 # endregion
 
