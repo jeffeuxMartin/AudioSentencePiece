@@ -70,6 +70,7 @@ VRAM_SIZE={vram_size}
     ST ) datasize=2;;
     *  ) datasize=2;;
   esac
+  echo Note that datasize=$datasize
 
   if [[ $VRAM_SIZE -ge 40 ]]; then
     GPU_maxbatch=$((4 * 24 / $datasize))
